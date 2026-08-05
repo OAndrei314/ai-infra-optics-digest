@@ -7,6 +7,19 @@ The project is designed for portfolio-style reproducibility: fixture RSS/Atom fe
 the complete pipeline with zero network access, while an explicit `--network` flag can read
 real HTTP(S) feeds for live digest generation.
 
+## Research + Money Thesis
+
+**Research question:** can a small reproducible pipeline track where AI-infrastructure
+research and capital are moving, then convert noisy public sources into useful engineering
+signals?
+
+**Money question:** this follows capex and bottleneck signals across accelerators,
+optical transceivers, co-packaged optics, semiconductors, data center power, cooling, and
+networking. The point is to read papers and market direction together.
+
+**Engineering evidence:** each digest item is tagged by infrastructure layer, summarized
+deterministically, dated, linked to its source, and reproducible from fixture feeds in CI.
+
 ## Why this exists
 
 AI infrastructure changes quickly across several layers at once: accelerator roadmaps,
