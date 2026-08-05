@@ -9,7 +9,7 @@ The scheduler does not create empty commits. Each run:
 3. Installs dependencies.
 4. Runs `pytest -v`.
 5. Builds a dated digest from live public feeds when `-Network` is enabled.
-6. Commits and pushes only if the digest changed.
+6. Commits `digests/YYYY-MM-DD.md` and pushes only if the digest changed.
 7. Appends a local status line to `logs/daily_digest_push.log`.
 
 That means no fake contribution-graph padding. If there is no new content or the working
