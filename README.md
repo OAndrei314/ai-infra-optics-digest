@@ -56,6 +56,19 @@ python -m optics_digest.cli build --sources configs/feeds.yaml --out digests --d
 python -m optics_digest.cli build --sources configs/feeds.yaml --out digests --network
 ```
 
+## Daily GitHub Scheduler
+
+This repo includes a Windows Task Scheduler workflow for real daily pushes:
+
+```powershell
+.\scripts\run_daily_digest_push.ps1 -Network -CreatePullRequest
+.\scripts\install_daily_digest_task.ps1 -Network -CreatePullRequest -At "09:00"
+```
+
+The scheduled job runs tests, builds a dated digest from `configs/live_feeds.yaml`, commits
+only when content changed, and pushes through `gh`/git. It refuses empty commits and dirty
+working trees. See [docs/daily-cadence.md](docs/daily-cadence.md).
+
 ## Feed config
 
 ```yaml

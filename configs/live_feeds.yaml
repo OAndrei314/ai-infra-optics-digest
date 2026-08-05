@@ -1,0 +1,16 @@
+feeds:
+  - name: arXiv CS.AI
+    url: https://rss.arxiv.org/rss/cs.AI
+  - name: arXiv CS.LG
+    url: https://rss.arxiv.org/rss/cs.LG
+  - name: arXiv CS.DC
+    url: https://rss.arxiv.org/rss/cs.DC
+  - name: arXiv CS.AR
+    url: https://rss.arxiv.org/rss/cs.AR
+  - name: arXiv EESS.SP
+    url: https://rss.arxiv.org/rss/eess.SP
+  - name: arXiv Physics Optics
+    url: https://rss.arxiv.org/rss/physics.optics
+  - name: NVIDIA Developer Blog
+    url: https://developer.nvidia.com/blog/feed/
+    required: false

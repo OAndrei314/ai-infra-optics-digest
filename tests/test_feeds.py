@@ -47,6 +47,25 @@ def test_http_sources_require_network_flag(tmp_path):
 
 
 def test_read_source_type_is_explicit_for_static_checkers():
-    source = FeedSource(name="local", url="../fixtures/feeds/optics_rss.xml")
+    source = FeedSource(name="local", url="../fixtures/feeds/optics_rss.xml", required=False)
 
     assert source.name == "local"
+    assert source.required is False
+
+
+def test_optional_source_failure_is_skipped(tmp_path):
+    config = tmp_path / "feeds.yaml"
+    fixture = Path.cwd() / "fixtures" / "feeds" / "optics_rss.xml"
+    config.write_text(
+        "feeds:\n"
+        "  - name: Broken Optional\n"
+        "    url: missing.xml\n"
+        "    required: false\n"
+        "  - name: Local Fixture\n"
+        f"    url: {fixture.as_posix()}\n",
+        encoding="utf-8",
+    )
+
+    items = collect_items(config)
+
+    assert len(items) == 3

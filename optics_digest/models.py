@@ -9,6 +9,7 @@ from datetime import datetime
 class FeedSource:
     name: str
     url: str
+    required: bool = True
 
 
 @dataclass(frozen=True)

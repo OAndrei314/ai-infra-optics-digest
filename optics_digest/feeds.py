@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import html
 import re
+import ssl
 import urllib.request
 import xml.etree.ElementTree as ET
 from datetime import datetime, timezone
@@ -11,6 +12,11 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 import yaml
+
+try:
+    import certifi
+except ImportError:  # pragma: no cover - only used when optional runtime dep is absent
+    certifi = None
 
 from .models import FeedItem, FeedSource
 
@@ -38,9 +44,10 @@ def load_sources(config_path: str | Path) -> list[FeedSource]:
         try:
             name = str(entry["name"])
             url = str(entry["url"])
+            required = bool(entry.get("required", True))
         except KeyError as exc:
             raise ValueError(f"feed entry {index} is missing {exc.args[0]!r}") from exc
-        sources.append(FeedSource(name=name, url=url))
+        sources.append(FeedSource(name=name, url=url, required=required))
     return sources
 
 
@@ -54,8 +61,12 @@ def collect_items(
     sources = load_sources(config_path)
     items: list[FeedItem] = []
     for source in sources:
-        xml_text = read_source(source, base_dir=config_path.parent, allow_network=allow_network)
-        items.extend(parse_feed_document(xml_text, source.name))
+        try:
+            xml_text = read_source(source, base_dir=config_path.parent, allow_network=allow_network)
+            items.extend(parse_feed_document(xml_text, source.name))
+        except Exception:
+            if source.required:
+                raise
 
     deduped = _dedupe_items(items)
     deduped.sort(key=lambda item: (-_published_timestamp(item), item.source.lower(), item.title.lower()))
@@ -73,7 +84,8 @@ def read_source(source: FeedSource, base_dir: Path, allow_network: bool = False)
             source.url,
             headers={"User-Agent": "ai-infra-optics-digest/0.1"},
         )
-        with urllib.request.urlopen(request, timeout=15) as response:
+        context = _ssl_context()
+        with urllib.request.urlopen(request, timeout=15, context=context) as response:
             encoding = response.headers.get_content_charset() or "utf-8"
             return response.read().decode(encoding, errors="replace")
 
@@ -216,6 +228,12 @@ def _published_timestamp(item: FeedItem) -> float:
     if item.published is None:
         return -1.0
     return item.published.timestamp()
+
+
+def _ssl_context() -> ssl.SSLContext:
+    if certifi is not None:
+        return ssl.create_default_context(cafile=certifi.where())
+    return ssl.create_default_context()
 
 
 def _dedupe_items(items: list[FeedItem]) -> list[FeedItem]:

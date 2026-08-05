@@ -1,0 +1,42 @@
+# Daily GitHub Cadence
+
+This repo is the honest daily-push engine for the portfolio.
+
+The scheduler does not create empty commits. Each run:
+
+1. Verifies `gh` authentication and the `origin` remote.
+2. Pulls with `--ff-only`.
+3. Installs dependencies.
+4. Runs `pytest -v`.
+5. Builds a dated digest from live public feeds when `-Network` is enabled.
+6. Commits and pushes only if the digest changed.
+7. Appends a local status line to `logs/daily_digest_push.log`.
+
+That means no fake contribution-graph padding. If there is no new content or the working
+tree is dirty, it exits without committing.
+
+## Install
+
+Authenticate GitHub CLI first:
+
+```powershell
+& "C:\Program Files\GitHub CLI\gh.exe" auth login --hostname github.com --git-protocol ssh --skip-ssh-key --web
+```
+
+Publish the repository once so it has an `origin` remote. Then install the daily task:
+
+```powershell
+.\scripts\install_daily_digest_task.ps1 -Network -CreatePullRequest -At "09:00"
+```
+
+## Run Once
+
+```powershell
+.\scripts\run_daily_digest_push.ps1 -Network -CreatePullRequest
+```
+
+## Feed Sources
+
+`configs/live_feeds.yaml` uses arXiv RSS feeds for AI, ML, distributed computing,
+hardware architecture, signal processing, optics, plus an optional NVIDIA Developer Blog
+feed. Optional feeds may fail without blocking the daily digest.
