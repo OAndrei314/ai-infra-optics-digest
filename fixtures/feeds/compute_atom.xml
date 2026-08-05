@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <title>Efficient Compute Lab Fixture</title>
+  <entry>
+    <id>tag:example.com,2026:laser-engines</id>
+    <title>Chiplet photonics startup samples pluggable laser engines</title>
+    <link href="https://example.com/laser-engines" rel="alternate" />
+    <updated>2026-08-05T09:30:00Z</updated>
+    <category term="silicon photonics" />
+    <summary>A chiplet photonics supplier sampled external laser engines aimed at co-packaged optics modules. The design separates laser maintenance from switch ASIC packaging and targets lower thermal load in AI cluster fabrics.</summary>
+  </entry>
+  <entry>
+    <id>tag:example.com,2026:advanced-packaging</id>
+    <title>Foundry update expands advanced packaging for AI accelerators</title>
+    <link href="https://example.com/advanced-packaging" rel="alternate" />
+    <updated>2026-08-04T16:45:00Z</updated>
+    <category term="semiconductors" />
+    <summary>The foundry added capacity for chiplet assembly, high-bandwidth memory integration, and interposer packaging. The update gives accelerator vendors more room to combine compute dies, memory, and networking interfaces.</summary>
+  </entry>
+  <entry>
+    <id>tag:example.com,2026:sparse-inference</id>
+    <title>Sparse inference ASIC reports higher TOPS per watt</title>
+    <link href="https://example.com/sparse-inference" rel="alternate" />
+    <published>2026-08-03T11:00:00Z</published>
+    <category term="energy efficient compute" />
+    <content type="html">The inference ASIC uses structured sparsity, low-voltage memory, and near-memory scheduling to improve throughput per watt. Operators are evaluating it for edge AI and constrained data center racks where power delivery is the bottleneck.</content>
+  </entry>
+</feed>

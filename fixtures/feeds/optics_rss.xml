@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<rss version="2.0">
+  <channel>
+    <title>Optics Wire Fixture</title>
+    <link>https://example.com/optics</link>
+    <description>Fixture feed for optics digest tests.</description>
+    <item>
+      <guid>optics-1</guid>
+      <title>Co-packaged optics roadmap targets 1.6T links for AI clusters</title>
+      <link>https://example.com/cpo-roadmap</link>
+      <pubDate>Wed, 05 Aug 2026 13:00:00 GMT</pubDate>
+      <category>silicon photonics</category>
+      <description>Vendors outlined co-packaged optics modules that move optical engines closer to switch ASICs. The roadmap focuses on 1.6T links, lower picojoules per bit, and denser AI training clusters.</description>
+    </item>
+    <item>
+      <guid>optics-2</guid>
+      <title>New liquid cooling design cuts accelerator rack power overhead</title>
+      <link>https://example.com/liquid-cooling</link>
+      <pubDate>Tue, 04 Aug 2026 15:30:00 GMT</pubDate>
+      <category>data center energy</category>
+      <description>A data center operator described a liquid cooling loop that reduces fan energy and stabilizes GPU racks. The design targets higher rack density without raising power usage effectiveness.</description>
+    </item>
+    <item>
+      <guid>optics-3</guid>
+      <title>Optical switch fabric lowers tail latency in scale-out training networks</title>
+      <link>https://example.com/optical-switch-fabric</link>
+      <pubDate>Mon, 03 Aug 2026 08:15:00 GMT</pubDate>
+      <category>optical networking</category>
+      <description>The switch fabric combines circuit switching with packet scheduling for east-west AI traffic. Tests show lower tail latency for distributed training jobs and reduced congestion on spine links.</description>
+    </item>
+  </channel>
+</rss>

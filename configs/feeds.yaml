@@ -1,0 +1,5 @@
+feeds:
+  - name: Optics RSS Fixture
+    url: ../fixtures/feeds/optics_rss.xml
+  - name: Compute Atom Fixture
+    url: ../fixtures/feeds/compute_atom.xml
