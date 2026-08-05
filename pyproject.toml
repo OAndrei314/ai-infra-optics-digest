@@ -1,0 +1,10 @@
+[project]
+name = "ai-infra-optics-digest"
+version = "0.1.0"
+description = "A deterministic digest generator for AI infrastructure, optics, silicon, networking, and efficient compute news."
+requires-python = ">=3.10"
+license = { text = "MIT" }
+dependencies = ["pyyaml>=6.0"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
