@@ -1,5 +1,7 @@
 # ai-infra-optics-digest
 
+Maintained by: codex-daily-routine
+
 A small, dependency-light digest generator for AI infrastructure, data center optics,
 silicon photonics, semiconductors, optical networking, and energy-efficient compute.
 
@@ -74,6 +76,21 @@ Check scheduler readiness:
 ```powershell
 .\scripts\check_scheduler_status.ps1
 ```
+
+## Codex Daily News Routine
+
+The generalized routine extends the digest-only job:
+
+```powershell
+.\scripts\run_codex_daily_news_routine.ps1 -Network
+.\scripts\install_codex_daily_news_task.ps1 -Network -At "09:00"
+.\scripts\check_codex_daily_news_status.ps1
+```
+
+It rotates live sources day to day, writes `routine-reports/YYYY-MM-DD.md`, filters out
+repos marked `Maintained by: claude-daily-routine`, selects the least-recent Codex-owned
+repo, and writes a dated `research-notes/YYYY-MM-DD.md` only when source-linked news is
+relevant to that repo. It stages exact generated paths and refuses dirty working trees.
 
 ## Feed config
 

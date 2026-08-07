@@ -10,6 +10,8 @@ class FeedSource:
     name: str
     url: str
     required: bool = True
+    category: str = "general"
+    rotation_bucket: int | None = None
 
 
 @dataclass(frozen=True)

@@ -6,6 +6,7 @@ import sys
 from datetime import date
 
 from .pipeline import generate_digest
+from .routine import run_news_routine
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -22,6 +23,21 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="allow HTTP(S) feed URLs; local fixture feeds work without this",
     )
+    build_p.add_argument(
+        "--rotate-sources",
+        action="store_true",
+        help="use the digest date to rotate optional live source buckets",
+    )
+
+    routine_p = sub.add_parser("routine", help="run the Codex daily news-aware repo routine")
+    routine_p.add_argument("--root", required=True, help="workspace root containing repo directories")
+    routine_p.add_argument("--sources", default="configs/live_feeds.yaml", help="feed YAML config")
+    routine_p.add_argument("--out", default="routine-reports", help="routine report output directory")
+    routine_p.add_argument("--date", help="routine date in YYYY-MM-DD form")
+    routine_p.add_argument("--limit", type=int, default=16, help="maximum news items to inspect")
+    routine_p.add_argument("--metadata-out", help="optional JSON metadata path")
+    routine_p.add_argument("--write-note", action="store_true", help="write a dated note to the selected repo")
+    routine_p.add_argument("--network", action="store_true", help="allow HTTP(S) news sources")
 
     args = parser.parse_args(argv)
 
@@ -34,11 +50,35 @@ def main(argv: list[str] | None = None) -> int:
                 digest_date=digest_date,
                 allow_network=args.network,
                 limit=args.limit,
+                rotate_sources=args.rotate_sources,
             )
         except Exception as exc:
             print(f"error: {exc}", file=sys.stderr)
             return 1
         print(f"wrote {out_path}")
+        return 0
+
+    if args.command == "routine":
+        try:
+            run_date = date.fromisoformat(args.date) if args.date else date.today()
+            result = run_news_routine(
+                root=args.root,
+                sources_path=args.sources,
+                out_dir=args.out,
+                run_date=run_date,
+                allow_network=args.network,
+                limit=args.limit,
+                write_note=args.write_note,
+                metadata_out=args.metadata_out,
+            )
+        except Exception as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 1
+        print(f"selected repo: {result.selected_repo}")
+        print(f"action: {result.action}")
+        print(f"report: {result.report_path}")
+        if result.note_path:
+            print(f"note: {result.note_path}")
         return 0
 
     return 1

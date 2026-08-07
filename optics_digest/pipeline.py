@@ -15,8 +15,14 @@ def generate_digest(
     digest_date: date,
     allow_network: bool = False,
     limit: int | None = None,
+    rotate_sources: bool = False,
 ) -> Path:
-    items = collect_items(sources_path, allow_network=allow_network, limit=limit)
+    items = collect_items(
+        sources_path,
+        allow_network=allow_network,
+        limit=limit,
+        rotation_date=digest_date if rotate_sources else None,
+    )
     if not items:
         raise ValueError("no feed items found")
     entries = tag_items(items)

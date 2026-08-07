@@ -7,6 +7,7 @@ import ssl
 import urllib.request
 import xml.etree.ElementTree as ET
 from datetime import datetime, timezone
+from datetime import date as Date
 from email.utils import parsedate_to_datetime
 from pathlib import Path
 from urllib.parse import urlparse
@@ -45,20 +46,67 @@ def load_sources(config_path: str | Path) -> list[FeedSource]:
             name = str(entry["name"])
             url = str(entry["url"])
             required = bool(entry.get("required", True))
+            category = str(entry.get("category", "general"))
+            rotation_bucket = entry.get("rotation_bucket")
+            if rotation_bucket is not None:
+                rotation_bucket = int(rotation_bucket)
         except KeyError as exc:
             raise ValueError(f"feed entry {index} is missing {exc.args[0]!r}") from exc
-        sources.append(FeedSource(name=name, url=url, required=required))
+        sources.append(
+            FeedSource(
+                name=name,
+                url=url,
+                required=required,
+                category=category,
+                rotation_bucket=rotation_bucket,
+            )
+        )
     return sources
+
+
+def source_rotation_period(config_path: str | Path) -> int:
+    config_path = Path(config_path)
+    with config_path.open(encoding="utf-8") as f:
+        raw = yaml.safe_load(f) or {}
+    rotation = raw.get("source_rotation") or {}
+    period = int(rotation.get("period_days", 3))
+    return max(1, period)
+
+
+def select_sources_for_date(
+    sources: list[FeedSource],
+    run_date: Date,
+    period_days: int = 3,
+) -> list[FeedSource]:
+    """Include all unbucketed sources and the bucket for this date.
+
+    This rotates discretionary feeds without losing always-on anchors such as arXiv
+    categories that should be watched every day.
+    """
+    bucket = run_date.toordinal() % max(1, period_days)
+    selected = [
+        source
+        for source in sources
+        if source.rotation_bucket is None or source.rotation_bucket % max(1, period_days) == bucket
+    ]
+    return selected
 
 
 def collect_items(
     config_path: str | Path,
     allow_network: bool = False,
     limit: int | None = None,
+    rotation_date: Date | None = None,
 ) -> list[FeedItem]:
     """Load all configured feeds, parse them, deduplicate, and sort newest first."""
     config_path = Path(config_path)
     sources = load_sources(config_path)
+    if rotation_date is not None:
+        sources = select_sources_for_date(
+            sources,
+            rotation_date,
+            period_days=source_rotation_period(config_path),
+        )
     items: list[FeedItem] = []
     for source in sources:
         try:

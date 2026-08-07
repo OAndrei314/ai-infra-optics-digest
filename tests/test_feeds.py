@@ -1,8 +1,16 @@
 from pathlib import Path
+from datetime import date
 
 import pytest
 
-from optics_digest.feeds import NetworkDisabledError, collect_items, load_sources, parse_feed_document
+from optics_digest.feeds import (
+    NetworkDisabledError,
+    collect_items,
+    load_sources,
+    parse_feed_document,
+    select_sources_for_date,
+    source_rotation_period,
+)
 from optics_digest.models import FeedSource
 
 
@@ -69,3 +77,31 @@ def test_optional_source_failure_is_skipped(tmp_path):
     items = collect_items(config)
 
     assert len(items) == 3
+
+
+def test_source_rotation_selects_unbucketed_and_matching_bucket(tmp_path):
+    config = tmp_path / "feeds.yaml"
+    fixture = Path.cwd() / "fixtures" / "feeds" / "optics_rss.xml"
+    config.write_text(
+        "source_rotation:\n"
+        "  period_days: 3\n"
+        "feeds:\n"
+        "  - name: Always\n"
+        f"    url: {fixture.as_posix()}\n"
+        "  - name: Bucket Zero\n"
+        f"    url: {fixture.as_posix()}\n"
+        "    rotation_bucket: 0\n"
+        "  - name: Bucket One\n"
+        f"    url: {fixture.as_posix()}\n"
+        "    rotation_bucket: 1\n"
+        "  - name: Bucket Two\n"
+        f"    url: {fixture.as_posix()}\n"
+        "    rotation_bucket: 2\n",
+        encoding="utf-8",
+    )
+    sources = load_sources(config)
+    selected = select_sources_for_date(sources, run_date=date(2026, 8, 7), period_days=3)
+
+    assert source_rotation_period(config) == 3
+    assert {source.name for source in selected} == {"Always", "Bucket Two"}
+    assert len(selected) == 2

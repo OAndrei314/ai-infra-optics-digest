@@ -1,0 +1,62 @@
+param(
+    [string]$TaskName = "OAndrei314 Codex Daily News Routine",
+    [string]$WorkspaceRoot = "C:\Users\ojoca\Documents\github_projects",
+    [string]$RepoPath = "C:\Users\ojoca\Documents\github_projects\ai-infra-optics-digest",
+    [string]$At = "09:00",
+    [switch]$Network
+)
+
+$ErrorActionPreference = "Stop"
+
+$scriptPath = Join-Path $RepoPath "scripts\run_codex_daily_news_routine.ps1"
+if (-not (Test-Path -LiteralPath $scriptPath)) {
+    throw "Missing routine runner: $scriptPath"
+}
+
+Push-Location $RepoPath
+try {
+    & "C:\Program Files\GitHub CLI\gh.exe" auth status *> $null
+    if ($LASTEXITCODE -ne 0) {
+        throw "GitHub CLI is not authenticated."
+    }
+    git remote get-url origin *> $null
+    if ($LASTEXITCODE -ne 0) {
+        throw "No origin remote is configured."
+    }
+    $dirty = git status --porcelain
+    if ($dirty) {
+        throw "Working tree is dirty. Commit or discard local changes before installing the task."
+    }
+} finally {
+    Pop-Location
+}
+
+$arguments = @(
+    "-NoProfile",
+    "-ExecutionPolicy", "Bypass",
+    "-File", "`"$scriptPath`"",
+    "-WorkspaceRoot", "`"$WorkspaceRoot`"",
+    "-RepoPath", "`"$RepoPath`""
+)
+if ($Network) {
+    $arguments += "-Network"
+}
+
+$action = New-ScheduledTaskAction -Execute "powershell.exe" -Argument ($arguments -join " ")
+$trigger = New-ScheduledTaskTrigger -Daily -At $At
+$settings = New-ScheduledTaskSettingsSet `
+    -StartWhenAvailable `
+    -AllowStartIfOnBatteries `
+    -DontStopIfGoingOnBatteries `
+    -ExecutionTimeLimit (New-TimeSpan -Hours 2)
+
+Register-ScheduledTask `
+    -TaskName $TaskName `
+    -Action $action `
+    -Trigger $trigger `
+    -Settings $settings `
+    -Description "Runs news-aware Codex-owned repo rotation, digest generation, tests, commits, and pushes real source-linked updates." `
+    -Force | Out-Null
+
+Write-Host "Installed scheduled task '$TaskName' at $At."
+Write-Host "Runner: $scriptPath"
