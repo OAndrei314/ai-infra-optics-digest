@@ -5,7 +5,9 @@ param(
     [string]$Sources = "configs\live_feeds.yaml",
     [string]$LogPath = "logs\daily_digest_push.log",
     [int]$Limit = 24,
+    [int]$MaxSendJitterMinutes = 45,
     [switch]$Network,
+    [switch]$NoSendJitter,
     [switch]$CreatePullRequest
 )
 
@@ -24,6 +26,22 @@ function Append-Run-Log {
     )
     $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
     "[$timestamp] $Message" | Out-File -FilePath $Path -Append -Encoding utf8
+}
+
+function Invoke-RandomSendJitter {
+    param(
+        [string]$Reason,
+        [string]$Path
+    )
+    if ($NoSendJitter -or $MaxSendJitterMinutes -le 0) {
+        Append-Run-Log $Path "send jitter skipped for $Reason"
+        return
+    }
+    $maxSeconds = [Math]::Max(1, $MaxSendJitterMinutes * 60)
+    $seconds = Get-Random -Minimum 1 -Maximum ($maxSeconds + 1)
+    Append-Run-Log $Path "waiting $seconds second(s) before $Reason"
+    Write-Host "Randomized send jitter: waiting $seconds second(s) before $Reason."
+    Start-Sleep -Seconds $seconds
 }
 
 if (-not (Test-Path -LiteralPath $RepoPath)) {
@@ -83,6 +101,7 @@ try {
     }
 
     git add -- $digestPath
+    Invoke-RandomSendJitter -Reason "digest commit/push" -Path $LogPath
     git commit -m "Add AI infrastructure optics digest $digestDate"
     git push
 
@@ -90,6 +109,7 @@ try {
         $repo = (& $GhPath repo view --json nameWithOwner --jq ".nameWithOwner").Trim()
         $existing = (& $GhPath pr list --repo $repo --head $branch --state open --json number --jq ".[0].number").Trim()
         if (-not $existing) {
+            Invoke-RandomSendJitter -Reason "digest pull request creation" -Path $LogPath
             & $GhPath pr create `
                 --repo $repo `
                 --base main `

@@ -9,8 +9,9 @@ The scheduler does not create empty commits. Each run:
 3. Installs dependencies.
 4. Runs `pytest -v`.
 5. Builds a dated digest from live public feeds when `-Network` is enabled.
-6. Commits `digests/YYYY-MM-DD.md` and pushes only if the digest changed.
-7. Appends a local status line to `logs/daily_digest_push.log`.
+6. Waits a bounded random send jitter before commit/push and optional PR creation.
+7. Commits `digests/YYYY-MM-DD.md` and pushes only if the digest changed.
+8. Appends a local status line to `logs/daily_digest_push.log`.
 
 That means no fake contribution-graph padding. If there is no new content or the working
 tree is dirty, it exits without committing.
@@ -30,14 +31,17 @@ Authenticate GitHub CLI first:
 Publish the repository once so it has an `origin` remote. Then install the daily task:
 
 ```powershell
-.\scripts\install_daily_digest_task.ps1 -Network -CreatePullRequest -At "09:00"
+.\scripts\install_daily_digest_task.ps1 -Network -CreatePullRequest -At "09:00" -MaxSendJitterMinutes 45
 ```
 
 ## Run Once
 
 ```powershell
-.\scripts\run_daily_digest_push.ps1 -Network -CreatePullRequest
+.\scripts\run_daily_digest_push.ps1 -Network -CreatePullRequest -NoSendJitter
 ```
+
+Scheduled runs default to a random 1 to 2700 second delay before publishing. Use
+`-MaxSendJitterMinutes` to change that window, or `-NoSendJitter` for manual checks.
 
 ## Check Status
 

@@ -14,7 +14,8 @@ This is the generalized daily task for the Codex-owned portfolio slice.
 6. Runs the repo/news routine and writes `routine-reports/YYYY-MM-DD.md`.
 7. Writes a dated research note to the selected repo only when relevant source-linked
    material exists.
-8. Stages exact generated paths, commits only if content changed, and pushes.
+8. Stages exact generated paths, waits a random send jitter, commits only if content
+   changed, and pushes.
 
 ## Ownership Rules
 
@@ -34,8 +35,15 @@ Claude-owned set from the handoff.
 
 ```powershell
 .\scripts\run_codex_daily_news_routine.ps1 -Network
-.\scripts\install_codex_daily_news_task.ps1 -Network -At "09:00"
+.\scripts\install_codex_daily_news_task.ps1 -Network -At "09:00" -MaxSendJitterMinutes 45
 .\scripts\check_codex_daily_news_status.ps1
 ```
 
 The installed task name is `OAndrei314 Codex Daily News Routine`.
+
+## Randomized Send Timing
+
+By default, the scheduler waits a random 1 to 2700 seconds before each commit/push action.
+That keeps the daily publishing cadence from firing at the exact same second every day
+while still committing only real generated work. Use `-MaxSendJitterMinutes` to change the
+window, set it to `0`, or pass `-NoSendJitter` for manual verification runs.

@@ -69,7 +69,8 @@ This repo includes a Windows Task Scheduler workflow for real daily pushes:
 
 The scheduled job runs tests, builds a dated digest from `configs/live_feeds.yaml`, commits
 only when content changed, and pushes through `gh`/git. It refuses empty commits and dirty
-working trees. See [docs/daily-cadence.md](docs/daily-cadence.md).
+working trees. Scheduled sends include a bounded random jitter before commit/push and
+optional PR creation. See [docs/daily-cadence.md](docs/daily-cadence.md).
 
 Check scheduler readiness:
 
@@ -90,7 +91,8 @@ The generalized routine extends the digest-only job:
 It rotates live sources day to day, writes `routine-reports/YYYY-MM-DD.md`, filters out
 repos marked `Maintained by: claude-daily-routine`, selects the least-recent Codex-owned
 repo, and writes a dated `research-notes/YYYY-MM-DD.md` only when source-linked news is
-relevant to that repo. It stages exact generated paths and refuses dirty working trees.
+relevant to that repo. It stages exact generated paths, randomizes send timing, and refuses
+dirty working trees.
 
 ## Feed config
 

@@ -3,6 +3,8 @@ param(
     [string]$WorkspaceRoot = "C:\Users\ojoca\Documents\github_projects",
     [string]$RepoPath = "C:\Users\ojoca\Documents\github_projects\ai-infra-optics-digest",
     [string]$At = "09:00",
+    [int]$MaxSendJitterMinutes = 45,
+    [switch]$NoSendJitter,
     [switch]$Network
 )
 
@@ -36,8 +38,12 @@ $arguments = @(
     "-ExecutionPolicy", "Bypass",
     "-File", "`"$scriptPath`"",
     "-WorkspaceRoot", "`"$WorkspaceRoot`"",
-    "-RepoPath", "`"$RepoPath`""
+    "-RepoPath", "`"$RepoPath`"",
+    "-MaxSendJitterMinutes", "$MaxSendJitterMinutes"
 )
+if ($NoSendJitter) {
+    $arguments += "-NoSendJitter"
+}
 if ($Network) {
     $arguments += "-Network"
 }

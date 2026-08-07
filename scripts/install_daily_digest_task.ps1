@@ -2,7 +2,9 @@ param(
     [string]$TaskName = "OAndrei314 Daily AI Infra Optics Digest",
     [string]$RepoPath = "C:\Users\ojoca\Documents\github_projects\ai-infra-optics-digest",
     [string]$At = "09:00",
+    [int]$MaxSendJitterMinutes = 45,
     [switch]$Network,
+    [switch]$NoSendJitter,
     [switch]$CreatePullRequest,
     [switch]$SkipReadinessCheck
 )
@@ -40,10 +42,14 @@ $arguments = @(
     "-NoProfile",
     "-ExecutionPolicy", "Bypass",
     "-File", "`"$scriptPath`"",
-    "-RepoPath", "`"$RepoPath`""
+    "-RepoPath", "`"$RepoPath`"",
+    "-MaxSendJitterMinutes", "$MaxSendJitterMinutes"
 )
 if ($Network) {
     $arguments += "-Network"
+}
+if ($NoSendJitter) {
+    $arguments += "-NoSendJitter"
 }
 if ($CreatePullRequest) {
     $arguments += "-CreatePullRequest"

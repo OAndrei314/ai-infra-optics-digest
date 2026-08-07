@@ -7,8 +7,10 @@ param(
     [string]$LogPath = "logs\codex_daily_news_routine.log",
     [int]$DigestLimit = 24,
     [int]$RoutineLimit = 16,
+    [int]$MaxSendJitterMinutes = 45,
     [switch]$Network,
-    [switch]$Force
+    [switch]$Force,
+    [switch]$NoSendJitter
 )
 
 $ErrorActionPreference = "Stop"
@@ -40,6 +42,22 @@ function Relative-GitPath {
     $pathUri = New-Object System.Uri $pathFull
     $relative = [System.Uri]::UnescapeDataString($repoUri.MakeRelativeUri($pathUri).ToString())
     return ($relative -replace "\\", "/")
+}
+
+function Invoke-RandomSendJitter {
+    param(
+        [string]$Reason,
+        [string]$Path
+    )
+    if ($NoSendJitter -or $MaxSendJitterMinutes -le 0) {
+        Append-Run-Log $Path "send jitter skipped for $Reason"
+        return
+    }
+    $maxSeconds = [Math]::Max(1, $MaxSendJitterMinutes * 60)
+    $seconds = Get-Random -Minimum 1 -Maximum ($maxSeconds + 1)
+    Append-Run-Log $Path "waiting $seconds second(s) before $Reason"
+    Write-Host "Randomized send jitter: waiting $seconds second(s) before $Reason."
+    Start-Sleep -Seconds $seconds
 }
 
 if (-not (Test-Path -LiteralPath $RepoPath)) {
@@ -133,6 +151,7 @@ try {
     }
 
     $noteCommitted = $false
+    $fullLogPath = Join-Path $RepoPath $LogPath
     if ($metadata.note_path) {
         $selectedRepo = $metadata.selected_repo_path
         $repoFull = (Resolve-Path -LiteralPath $RepoPath).Path
@@ -144,6 +163,7 @@ try {
                 git add -- $relativeNote
                 git diff --cached --quiet
                 if ($LASTEXITCODE -ne 0) {
+                    Invoke-RandomSendJitter -Reason "selected repo commit/push" -Path $fullLogPath
                     git commit -m "Add daily news research note $($metadata.run_date)"
                     git push origin HEAD
                     $noteCommitted = $true
@@ -167,6 +187,7 @@ try {
         git add -- $stagePaths
         git diff --cached --quiet
         if ($LASTEXITCODE -ne 0) {
+            Invoke-RandomSendJitter -Reason "digest routine commit/push" -Path $fullLogPath
             git commit -m "Run Codex daily news routine $runDate"
             git push origin HEAD
         }
