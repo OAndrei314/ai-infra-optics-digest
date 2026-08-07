@@ -69,6 +69,12 @@ The scheduled job runs tests, builds a dated digest from `configs/live_feeds.yam
 only when content changed, and pushes through `gh`/git. It refuses empty commits and dirty
 working trees. See [docs/daily-cadence.md](docs/daily-cadence.md).
 
+Check scheduler readiness:
+
+```powershell
+.\scripts\check_scheduler_status.ps1
+```
+
 ## Feed config
 
 ```yaml

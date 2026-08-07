@@ -15,6 +15,10 @@ The scheduler does not create empty commits. Each run:
 That means no fake contribution-graph padding. If there is no new content or the working
 tree is dirty, it exits without committing.
 
+The installer also checks GitHub auth, `origin`, and clean working tree state before
+registering the task. Use `-SkipReadinessCheck` only when deliberately staging the task
+before the repository is published.
+
 ## Install
 
 Authenticate GitHub CLI first:
@@ -33,6 +37,12 @@ Publish the repository once so it has an `origin` remote. Then install the daily
 
 ```powershell
 .\scripts\run_daily_digest_push.ps1 -Network -CreatePullRequest
+```
+
+## Check Status
+
+```powershell
+.\scripts\check_scheduler_status.ps1
 ```
 
 ## Feed Sources

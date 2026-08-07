@@ -17,6 +17,15 @@ function Write-Log {
     Write-Host "[$timestamp] $Message"
 }
 
+function Append-Run-Log {
+    param(
+        [string]$Path,
+        [string]$Message
+    )
+    $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+    "[$timestamp] $Message" | Out-File -FilePath $Path -Append -Encoding utf8
+}
+
 if (-not (Test-Path -LiteralPath $RepoPath)) {
     throw "Missing repo path: $RepoPath"
 }
@@ -27,7 +36,7 @@ try {
     if ($logDirectory) {
         New-Item -ItemType Directory -Force -Path $logDirectory | Out-Null
     }
-    "[$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')] starting daily digest run" | Out-File -FilePath $LogPath -Append -Encoding utf8
+    Append-Run-Log $LogPath "starting daily digest run"
 
     $branch = (git branch --show-current).Trim()
     if (-not $branch) {
@@ -55,20 +64,25 @@ try {
     & $PythonPath -m pytest -v
 
     $digestDate = Get-Date -Format "yyyy-MM-dd"
+    $digestPath = Join-Path "digests" "$digestDate.md"
     $args = @("-m", "optics_digest.cli", "build", "--sources", $Sources, "--out", "digests", "--date", $digestDate, "--limit", "$Limit")
     if ($Network) {
         $args += "--network"
     }
     & $PythonPath @args
 
-    $changed = git status --porcelain
-    if (-not $changed) {
-        Write-Log "No digest changes to commit. Nothing pushed."
-        "[$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')] no changes" | Out-File -FilePath $LogPath -Append -Encoding utf8
-        exit 0
+    if (-not (Test-Path -LiteralPath $digestPath)) {
+        throw "Expected digest was not created: $digestPath"
     }
 
-    git add digests README.md configs scripts docs optics_digest tests requirements.txt requirements-dev.txt pyproject.toml .github
+    $changed = git status --porcelain -- $digestPath
+    if (-not $changed) {
+        Write-Log "No digest changes to commit. Nothing pushed."
+        Append-Run-Log $LogPath "no changes"
+        return
+    }
+
+    git add -- $digestPath
     git commit -m "Add AI infrastructure optics digest $digestDate"
     git push
 
@@ -86,7 +100,14 @@ try {
     }
 
     Write-Log "Committed and pushed digest for $digestDate on branch $branch."
-    "[$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')] pushed digest for $digestDate on $branch" | Out-File -FilePath $LogPath -Append -Encoding utf8
+    Append-Run-Log $LogPath "pushed digest for $digestDate on $branch"
+} catch {
+    try {
+        Append-Run-Log $LogPath "failed: $($_.Exception.Message)"
+    } catch {
+        Write-Host "Could not append failure to log: $($_.Exception.Message)"
+    }
+    throw
 } finally {
     Pop-Location
 }
