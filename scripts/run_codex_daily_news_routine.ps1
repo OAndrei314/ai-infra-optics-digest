@@ -7,7 +7,8 @@ param(
     [string]$LogPath = "logs\codex_daily_news_routine.log",
     [int]$DigestLimit = 24,
     [int]$RoutineLimit = 16,
-    [switch]$Network
+    [switch]$Network,
+    [switch]$Force
 )
 
 $ErrorActionPreference = "Stop"
@@ -61,6 +62,14 @@ $codexRepos = @(
 Append-Run-Log (Join-Path $RepoPath $LogPath) "starting Codex daily news routine"
 
 try {
+    $runDate = Get-Date -Format "yyyy-MM-dd"
+    $existingMetadata = Join-Path $RepoPath (Join-Path "routine-reports" "$runDate.json")
+    if ((Test-Path -LiteralPath $existingMetadata) -and (-not $Force)) {
+        Append-Run-Log (Join-Path $RepoPath $LogPath) "already completed $runDate; use -Force to rerun"
+        Write-Host "Codex daily news routine already completed for $runDate. Use -Force to rerun."
+        return
+    }
+
     foreach ($name in $codexRepos) {
         $path = Join-Path $WorkspaceRoot $name
         if (Test-Path -LiteralPath (Join-Path $path ".git")) {
@@ -84,7 +93,6 @@ try {
         & $PythonPath -m pip install -e .
         & $PythonPath -m pytest -v
 
-        $runDate = Get-Date -Format "yyyy-MM-dd"
         $digestPath = Join-Path "digests" "$runDate.md"
         $routineDir = "routine-reports"
         $metadataPath = Join-Path $routineDir "$runDate.json"
