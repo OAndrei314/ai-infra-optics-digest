@@ -379,9 +379,10 @@ def _read_readme(repo_path: Path) -> str:
 
 
 def _marker_for_readme(readme: str) -> str:
-    if CLAUDE_MARKER in readme:
+    lines = {line.strip() for line in readme.splitlines()}
+    if CLAUDE_MARKER in lines:
         return CLAUDE_MARKER
-    if CODEX_MARKER in readme:
+    if CODEX_MARKER in lines:
         return CODEX_MARKER
     return ""
 

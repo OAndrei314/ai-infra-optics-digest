@@ -20,13 +20,16 @@ def _fake_repo(root, name, readme):
 
 def test_discover_repos_skips_claude_and_other_routine_repos(tmp_path):
     _fake_repo(tmp_path, "ai-factory-optical-twin", f"# Twin\n\n{CODEX_MARKER}\n")
+    _fake_repo(tmp_path, "fresh-codex-repo", f"# Fresh\n\n{CODEX_MARKER}\n")
     _fake_repo(tmp_path, "open-weight-eval-arena", f"# Arena\n\n{CLAUDE_MARKER}\n")
+    _fake_repo(tmp_path, "fresh-claude-repo", f"# Fresh\n\n{CLAUDE_MARKER}\n")
     _fake_repo(tmp_path, "UniversityProject", "# Course work\n")
 
     candidates, skipped = discover_repos(tmp_path)
 
-    assert [repo.name for repo in candidates] == ["ai-factory-optical-twin"]
+    assert [repo.name for repo in candidates] == ["ai-factory-optical-twin", "fresh-codex-repo"]
     assert "open-weight-eval-arena" in skipped
+    assert "fresh-claude-repo" in skipped
     assert "UniversityProject" in skipped
 
 

@@ -35,7 +35,9 @@ function Relative-GitPath {
     param([string]$Repo, [string]$Path)
     $repoFull = (Resolve-Path -LiteralPath $Repo).Path
     $pathFull = (Resolve-Path -LiteralPath $Path).Path
-    $relative = [System.IO.Path]::GetRelativePath($repoFull, $pathFull)
+    $repoUri = New-Object System.Uri (($repoFull.TrimEnd("\") + "\"))
+    $pathUri = New-Object System.Uri $pathFull
+    $relative = [System.Uri]::UnescapeDataString($repoUri.MakeRelativeUri($pathUri).ToString())
     return ($relative -replace "\\", "/")
 }
 
