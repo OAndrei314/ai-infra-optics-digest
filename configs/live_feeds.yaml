@@ -60,6 +60,26 @@ feeds:
     category: ai_infrastructure
     rotation_bucket: 3
     required: false
+  - name: NVIDIA Newsroom
+    url: https://nvidianews.nvidia.com/rss.xml
+    category: physical_ai
+    rotation_bucket: 0
+    required: false
+  - name: OpenAI News
+    url: https://openai.com/news/rss.xml
+    category: ai_research
+    rotation_bucket: 1
+    required: false
+  - name: Anthropic News
+    url: https://www.anthropic.com/news/rss.xml
+    category: ai_research
+    rotation_bucket: 2
+    required: false
+  - name: vLLM Blog
+    url: https://blog.vllm.ai/feed.xml
+    category: inference_serving
+    rotation_bucket: 3
+    required: false
   - name: ServeTheHome
     url: https://www.servethehome.com/feed/
     category: ai_infrastructure

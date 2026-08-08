@@ -18,6 +18,7 @@ import yaml
 
 from .classifier import tag_items
 from .feeds import collect_items, select_sources_for_date, source_rotation_period
+from .hotness import hotness_score, sort_hot_entries
 from .models import DigestEntry, FeedSource
 
 CODEX_MARKER = "Maintained by: codex-daily-routine"
@@ -48,6 +49,11 @@ CODEX_SEED_REPOS = {
     "tinyml-quantized-telemetry-bench",
     "silicon-photonics-telemetry-monitor",
     "firmware-validation-agent",
+    "physical-ai-data-factory-sim",
+    "open-model-supply-chain-radar",
+    "agentic-security-canary",
+    "long-context-cost-lab",
+    "ai-cluster-optics-capacity-planner",
 }
 
 REPO_TOPICS = {
@@ -99,6 +105,60 @@ REPO_TOPICS = {
         "hardware",
         "test",
         "tool use",
+    ),
+    "physical-ai-data-factory-sim": (
+        "physical ai",
+        "world model",
+        "open world model",
+        "robotics",
+        "synthetic data",
+        "simulation",
+        "omniverse",
+        "cosmos",
+    ),
+    "open-model-supply-chain-radar": (
+        "open-weight",
+        "open weight",
+        "weights",
+        "license",
+        "supply chain",
+        "model release",
+        "governance",
+        "frontier",
+    ),
+    "agentic-security-canary": (
+        "agent",
+        "agentic",
+        "cybersecurity",
+        "security",
+        "breach",
+        "hack",
+        "containment",
+        "tool use",
+    ),
+    "long-context-cost-lab": (
+        "context",
+        "1m",
+        "million-token",
+        "long context",
+        "prefill",
+        "decode",
+        "inference",
+        "serving",
+        "vllm",
+        "cost",
+    ),
+    "ai-cluster-optics-capacity-planner": (
+        "data center",
+        "datacenter",
+        "gpu",
+        "rack",
+        "optical",
+        "transceiver",
+        "network",
+        "bandwidth",
+        "capex",
+        "power",
     ),
 }
 
@@ -185,9 +245,10 @@ def choose_repo(candidates: tuple[RepoCandidate, ...]) -> RepoCandidate:
 
 def choose_repos(
     candidates: tuple[RepoCandidate, ...],
-    min_count: int = 3,
-    max_count: int = 6,
+    min_count: int = 5,
+    max_count: int = 10,
     required_repo: str | None = "ai-infra-optics-digest",
+    priority_repos: tuple[str, ...] = (),
     rng: random.Random | None = None,
 ) -> tuple[RepoCandidate, ...]:
     if not candidates:
@@ -201,6 +262,13 @@ def choose_repos(
     selected: list[RepoCandidate] = []
     if required_repo and required_repo in by_name:
         selected.append(by_name[required_repo])
+
+    for name in priority_repos:
+        if len(selected) >= target_count:
+            break
+        repo = by_name.get(name)
+        if repo and repo not in selected:
+            selected.append(repo)
 
     remaining = [repo for repo in candidates if repo not in selected]
     needed = max(0, target_count - len(selected))
@@ -222,7 +290,7 @@ def scan_news(
         limit=limit,
         rotation_date=run_date,
     )
-    entries = tag_items(items)
+    entries = sort_hot_entries(tag_items(items))
     sources = _selected_source_names(sources_path, run_date)
     return entries, sources
 
@@ -236,24 +304,26 @@ def run_news_routine(
     limit: int = 16,
     write_note: bool = False,
     metadata_out: str | Path | None = None,
-    min_repo_count: int = 3,
-    max_repo_count: int = 6,
+    min_repo_count: int = 5,
+    max_repo_count: int = 10,
     selection_seed: str | None = None,
 ) -> RoutineRun:
     candidates, skipped = discover_repos(root)
+    entries, sources_checked = scan_news(sources_path, run_date, allow_network, limit)
+    priority_repos = _hot_priority_repos(candidates, entries)
     rng = random.Random(selection_seed) if selection_seed is not None else None
     selected_repos = choose_repos(
         candidates,
         min_count=min_repo_count,
         max_count=max_repo_count,
         required_repo="ai-infra-optics-digest",
+        priority_repos=priority_repos,
         rng=rng,
     )
     selected = next(
         (repo for repo in selected_repos if repo.name == "ai-infra-optics-digest"),
         selected_repos[0],
     )
-    entries, sources_checked = scan_news(sources_path, run_date, allow_network, limit)
     entries_by_repo = {repo.name: _entries_for_repo_note(entries, repo.name) for repo in selected_repos}
     extraordinary = tuple(entry.item.title for entry in entries if _is_extraordinary(entry))
 
@@ -399,6 +469,9 @@ def render_routine_report(
         lines.extend(f"- {title}" for title in extraordinary[:8])
     else:
         lines.append("- None crossed the deterministic keyword threshold.")
+    lines.extend(["", "## Hottest Items", ""])
+    for entry in sorted(entries, key=lambda item: (-hotness_score(item), item.item.title.lower()))[:8]:
+        lines.append(f"- score={hotness_score(entry)} | {entry.item.title} ({entry.item.source})")
     lines.extend(["", "## Relevant Items For Selected Repos", ""])
     for repo in selected_repos:
         lines.extend(["", f"### {repo.name}", ""])
@@ -497,6 +570,18 @@ def _relevant_entries(entries: list[DigestEntry], repo_name: str) -> list[Digest
             scored.append((score, entry))
     scored.sort(key=lambda pair: (-pair[0], pair[1].item.source.lower(), pair[1].item.title.lower()))
     return [entry for _, entry in scored]
+
+
+def _hot_priority_repos(candidates: tuple[RepoCandidate, ...], entries: list[DigestEntry]) -> tuple[str, ...]:
+    scored: list[tuple[int, str]] = []
+    for repo in candidates:
+        score = 0
+        for entry in _relevant_entries(entries, repo.name)[:5]:
+            score += hotness_score(entry)
+        if score:
+            scored.append((score, repo.name))
+    scored.sort(key=lambda pair: (-pair[0], pair[1]))
+    return tuple(name for _, name in scored)
 
 
 def _entries_for_repo_note(entries: list[DigestEntry], repo_name: str) -> list[DigestEntry]:

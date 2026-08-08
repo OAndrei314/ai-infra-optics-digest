@@ -6,6 +6,7 @@ from pathlib import Path
 
 from .classifier import tag_items
 from .feeds import collect_items
+from .hotness import sort_hot_entries
 from .renderer import write_digest
 
 
@@ -25,5 +26,5 @@ def generate_digest(
     )
     if not items:
         raise ValueError("no feed items found")
-    entries = tag_items(items)
+    entries = sort_hot_entries(tag_items(items))
     return write_digest(entries, out_dir=out_dir, digest_date=digest_date)

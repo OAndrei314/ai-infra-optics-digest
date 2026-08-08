@@ -6,6 +6,7 @@ from datetime import date
 from pathlib import Path
 
 from .classifier import layer_label, layer_order
+from .hotness import hotness_score
 from .models import DigestEntry
 
 
@@ -32,6 +33,11 @@ def render_digest(entries: list[DigestEntry], digest_date: date) -> str:
     lines.extend(["", "## Sources", ""])
     for source in sources:
         lines.append(f"- {source}")
+
+    lines.extend(["", "## Hot AI Signals", ""])
+    for entry in sorted(entries, key=lambda item: (-hotness_score(item), item.item.title.lower()))[:5]:
+        published = entry.item.published.date().isoformat() if entry.item.published else "undated"
+        lines.append(f"- score={hotness_score(entry)} | {entry.item.title} ({entry.item.source}, {published})")
 
     by_layer: dict[str, list[DigestEntry]] = {}
     for entry in entries:

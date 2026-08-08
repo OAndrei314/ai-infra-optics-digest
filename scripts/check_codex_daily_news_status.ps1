@@ -72,8 +72,8 @@ $jitterArg = Get-TaskArgumentValue -Arguments $actionArgs -Name "MaxSendJitterMi
 $jitterMinutes = $(if ($jitterArg) { [int]$jitterArg } else { 300 })
 $minProjectsArg = Get-TaskArgumentValue -Arguments $actionArgs -Name "MinDailyProjects"
 $maxProjectsArg = Get-TaskArgumentValue -Arguments $actionArgs -Name "MaxDailyProjects"
-$minProjects = $(if ($minProjectsArg) { [int]$minProjectsArg } else { 3 })
-$maxProjects = $(if ($maxProjectsArg) { [int]$maxProjectsArg } else { 6 })
+$minProjects = $(if ($minProjectsArg) { [int]$minProjectsArg } else { 5 })
+$maxProjects = $(if ($maxProjectsArg) { [int]$maxProjectsArg } else { 10 })
 $limitMinutes = Convert-TaskDurationToMinutes $task.Settings.ExecutionTimeLimit
 $requiredMinutes = ($jitterMinutes * 2) + 120
 Report ($(if ($minProjects -ge 1 -and $maxProjects -ge $minProjects) { "ok" } else { "!!" })) "Daily project batch" "min=$minProjects, max=$maxProjects"

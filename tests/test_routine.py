@@ -57,13 +57,18 @@ def test_choose_repos_honors_bounds_and_required_repo():
                 "tinyml-quantized-telemetry-bench",
                 "silicon-photonics-telemetry-monitor",
                 "firmware-validation-agent",
+                "physical-ai-data-factory-sim",
+                "open-model-supply-chain-radar",
+                "agentic-security-canary",
+                "long-context-cost-lab",
+                "ai-cluster-optics-capacity-planner",
             )
         )
     )
 
-    selected = choose_repos(candidates, min_count=3, max_count=6, rng=random.Random(7))
+    selected = choose_repos(candidates, min_count=5, max_count=10, rng=random.Random(7))
 
-    assert 3 <= len(selected) <= 5
+    assert 5 <= len(selected) <= 10
     assert "ai-infra-optics-digest" in {repo.name for repo in selected}
 
 
@@ -97,6 +102,11 @@ def test_run_news_routine_writes_randomized_multi_repo_notes(tmp_path):
         "tinyml-quantized-telemetry-bench",
         "silicon-photonics-telemetry-monitor",
         "firmware-validation-agent",
+        "physical-ai-data-factory-sim",
+        "open-model-supply-chain-radar",
+        "agentic-security-canary",
+        "long-context-cost-lab",
+        "ai-cluster-optics-capacity-planner",
     ):
         _fake_repo(tmp_path, name, f"# {name}\n\n{CODEX_MARKER}\n")
 
@@ -109,12 +119,12 @@ def test_run_news_routine_writes_randomized_multi_repo_notes(tmp_path):
         limit=6,
         write_note=True,
         metadata_out=tmp_path / "routine-reports" / "run.json",
-        min_repo_count=3,
-        max_repo_count=6,
+        min_repo_count=5,
+        max_repo_count=10,
         selection_seed="daily-test",
     )
 
-    assert 3 <= len(result.selected_repos) <= 5
+    assert 5 <= len(result.selected_repos) <= 10
     assert "ai-infra-optics-digest" in result.selected_repos
     assert len(result.note_paths) == len(result.selected_repos)
     for note_path in result.note_paths:

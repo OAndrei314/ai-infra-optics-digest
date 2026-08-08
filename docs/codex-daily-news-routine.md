@@ -12,8 +12,8 @@ This is the generalized daily task for the Codex-owned portfolio slice.
 4. Runs bare `pytest -v`.
 5. Builds the dated digest from `configs/live_feeds.yaml` with source rotation.
 6. Runs the repo/news routine and writes `routine-reports/YYYY-MM-DD.md`.
-7. Randomly selects 3 to 6 total Codex-owned projects and writes dated research notes
-   when source-linked material exists.
+7. Randomly selects 5 to 10 total Codex-owned projects, biased toward the hottest current
+   AI/news signals, and writes dated research notes when source-linked material exists.
 8. Stages exact generated paths, waits a random send jitter, commits only if content
    changed, and pushes.
 
@@ -35,7 +35,7 @@ Claude-owned set from the handoff.
 
 ```powershell
 .\scripts\run_codex_daily_news_routine.ps1 -Network
-.\scripts\install_codex_daily_news_task.ps1 -Network -At "09:00" -MaxSendJitterMinutes 300 -MinDailyProjects 3 -MaxDailyProjects 6
+.\scripts\install_codex_daily_news_task.ps1 -Network -At "09:00" -MaxSendJitterMinutes 300 -MinDailyProjects 5 -MaxDailyProjects 10
 .\scripts\check_codex_daily_news_status.ps1
 ```
 
@@ -57,5 +57,6 @@ Scheduled commits use the account-scoped GitHub no-reply email by default so Git
 attribute them to `OAndrei314` when they land on the repository default branch.
 
 Each daily run selects a random batch of Codex-owned projects, with `ai-infra-optics-digest`
-included as the coordination repo. The default batch size is minimum 3 and maximum 6 total
-projects, bounded by the number of available Codex-owned repos.
+included as the coordination repo. The default batch size is minimum 5 and maximum 10 total
+projects, bounded by the number of available Codex-owned repos. The selector gives priority
+to repos whose topics match the hottest feed items before filling the rest randomly.
