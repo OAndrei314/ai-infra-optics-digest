@@ -52,3 +52,6 @@ sizes the task runtime to cover two randomized publish waits plus a 120-minute b
 If a scheduled run is interrupted after writing the dated metadata, the next run no longer
 gets stuck on "already completed." It attempts a recovery publish for the exact generated
 digest, routine report, metadata, and selected repo research note paths.
+
+Scheduled commits use the account-scoped GitHub no-reply email by default so GitHub can
+attribute them to `OAndrei314` when they land on the repository default branch.

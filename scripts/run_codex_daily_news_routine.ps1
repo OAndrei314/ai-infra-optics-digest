@@ -8,6 +8,8 @@ param(
     [int]$DigestLimit = 24,
     [int]$RoutineLimit = 16,
     [int]$MaxSendJitterMinutes = 300,
+    [string]$GitAuthorName = "OAndrei314",
+    [string]$GitAuthorEmail = "56999057+OAndrei314@users.noreply.github.com",
     [switch]$Network,
     [switch]$Force,
     [switch]$NoSendJitter
@@ -29,6 +31,17 @@ function Assert-Clean-GitRepo {
         if ($dirty) {
             throw "Working tree is dirty: $Path"
         }
+    } finally {
+        Pop-Location
+    }
+}
+
+function Set-CodexGitIdentity {
+    param([string]$Repo)
+    Push-Location $Repo
+    try {
+        git config user.name $GitAuthorName
+        git config user.email $GitAuthorEmail
     } finally {
         Pop-Location
     }
@@ -295,11 +308,14 @@ try {
         $path = Join-Path $WorkspaceRoot $name
         if (Test-Path -LiteralPath (Join-Path $path ".git")) {
             Assert-Clean-GitRepo $path
+            Set-CodexGitIdentity $path
         }
     }
 
     Push-Location $RepoPath
     try {
+        git config user.name $GitAuthorName
+        git config user.email $GitAuthorEmail
         & $GhPath auth status *> $null
         if ($LASTEXITCODE -ne 0) {
             throw "GitHub CLI is not authenticated."

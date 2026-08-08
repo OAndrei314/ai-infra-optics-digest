@@ -5,6 +5,8 @@ param(
     [string]$At = "09:00",
     [int]$MaxSendJitterMinutes = 300,
     [int]$RuntimePaddingMinutes = 120,
+    [string]$GitAuthorName = "OAndrei314",
+    [string]$GitAuthorEmail = "56999057+OAndrei314@users.noreply.github.com",
     [switch]$NoSendJitter,
     [switch]$Network
 )
@@ -40,7 +42,9 @@ $arguments = @(
     "-File", "`"$scriptPath`"",
     "-WorkspaceRoot", "`"$WorkspaceRoot`"",
     "-RepoPath", "`"$RepoPath`"",
-    "-MaxSendJitterMinutes", "$MaxSendJitterMinutes"
+    "-MaxSendJitterMinutes", "$MaxSendJitterMinutes",
+    "-GitAuthorName", "`"$GitAuthorName`"",
+    "-GitAuthorEmail", "`"$GitAuthorEmail`""
 )
 if ($NoSendJitter) {
     $arguments += "-NoSendJitter"

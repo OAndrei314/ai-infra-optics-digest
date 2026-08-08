@@ -45,6 +45,9 @@ Scheduled runs default to a random 1 to 18000 second delay before publishing. Us
 installer sizes the task runtime to cover randomized publish waits plus a 120-minute
 buffer.
 
+Scheduled commits use the account-scoped GitHub no-reply email by default so contribution
+attribution works when commits land on the repository default branch.
+
 ## Check Status
 
 ```powershell

@@ -6,6 +6,8 @@ param(
     [string]$LogPath = "logs\daily_digest_push.log",
     [int]$Limit = 24,
     [int]$MaxSendJitterMinutes = 300,
+    [string]$GitAuthorName = "OAndrei314",
+    [string]$GitAuthorEmail = "56999057+OAndrei314@users.noreply.github.com",
     [switch]$Network,
     [switch]$NoSendJitter,
     [switch]$CreatePullRequest
@@ -60,6 +62,8 @@ try {
     if (-not $branch) {
         throw "Could not determine current git branch."
     }
+    git config user.name $GitAuthorName
+    git config user.email $GitAuthorEmail
 
     & $GhPath auth status *> $null
     if ($LASTEXITCODE -ne 0) {
