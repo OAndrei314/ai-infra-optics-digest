@@ -10,6 +10,26 @@ function Report {
     Write-Host "[$Status] $Label - $Detail"
 }
 
+function Get-TaskArgumentValue {
+    param([string]$Arguments, [string]$Name)
+    $pattern = "(?i)(?:^|\s)-$([regex]::Escape($Name))\s+(`"[^`"]+`"|\S+)"
+    if ($Arguments -match $pattern) {
+        return $matches[1].Trim('"')
+    }
+    return $null
+}
+
+function Convert-TaskDurationToMinutes {
+    param($Duration)
+    if ($Duration -is [TimeSpan]) {
+        return [int][Math]::Floor($Duration.TotalMinutes)
+    }
+    if (-not $Duration) {
+        return 0
+    }
+    return [int][Math]::Floor(([System.Xml.XmlConvert]::ToTimeSpan([string]$Duration)).TotalMinutes)
+}
+
 if (-not (Test-Path -LiteralPath $RepoPath)) {
     Report "!!" "Repo path" "missing: $RepoPath"
     exit 1
@@ -47,4 +67,10 @@ if (-not $task) {
 }
 $info = Get-ScheduledTaskInfo -TaskName $TaskName
 Report "ok" "Scheduled task" "$TaskName installed; state=$($task.State)"
+$actionArgs = $task.Actions[0].Arguments
+$jitterArg = Get-TaskArgumentValue -Arguments $actionArgs -Name "MaxSendJitterMinutes"
+$jitterMinutes = $(if ($jitterArg) { [int]$jitterArg } else { 300 })
+$limitMinutes = Convert-TaskDurationToMinutes $task.Settings.ExecutionTimeLimit
+$requiredMinutes = ($jitterMinutes * 2) + 120
+Report ($(if ($limitMinutes -ge $requiredMinutes) { "ok" } else { "!!" })) "Runtime budget" "jitter=${jitterMinutes}m, limit=${limitMinutes}m, required>=${requiredMinutes}m"
 Report ($(if ($info.LastTaskResult -eq 0) { "ok" } else { "!!" })) "Last run" "result=$($info.LastTaskResult), last=$($info.LastRunTime), next=$($info.NextRunTime)"

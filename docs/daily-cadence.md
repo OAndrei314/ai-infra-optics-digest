@@ -42,8 +42,8 @@ Publish the repository once so it has an `origin` remote. Then install the daily
 
 Scheduled runs default to a random 1 to 18000 second delay before publishing. Use
 `-MaxSendJitterMinutes` to change that window, or `-NoSendJitter` for manual checks. The
-installed task allows up to 12 hours of runtime so commit/push and optional PR jitter can
-complete.
+installer sizes the task runtime to cover randomized publish waits plus a 120-minute
+buffer.
 
 ## Check Status
 

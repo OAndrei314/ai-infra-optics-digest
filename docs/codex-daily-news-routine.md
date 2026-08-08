@@ -46,5 +46,9 @@ The installed task name is `OAndrei314 Codex Daily News Routine`.
 By default, the scheduler waits a random 1 to 18000 seconds before each commit/push action.
 That keeps the daily publishing cadence from firing at the exact same second every day
 while still committing only real generated work. Use `-MaxSendJitterMinutes` to change the
-window, set it to `0`, or pass `-NoSendJitter` for manual verification runs. The installed
-task allows up to 12 hours of runtime so two randomized publish waits can complete.
+window, set it to `0`, or pass `-NoSendJitter` for manual verification runs. The installer
+sizes the task runtime to cover two randomized publish waits plus a 120-minute buffer.
+
+If a scheduled run is interrupted after writing the dated metadata, the next run no longer
+gets stuck on "already completed." It attempts a recovery publish for the exact generated
+digest, routine report, metadata, and selected repo research note paths.

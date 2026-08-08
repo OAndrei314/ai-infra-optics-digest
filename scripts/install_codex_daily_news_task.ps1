@@ -4,6 +4,7 @@ param(
     [string]$RepoPath = "C:\Users\ojoca\Documents\github_projects\ai-infra-optics-digest",
     [string]$At = "09:00",
     [int]$MaxSendJitterMinutes = 300,
+    [int]$RuntimePaddingMinutes = 120,
     [switch]$NoSendJitter,
     [switch]$Network
 )
@@ -48,13 +49,16 @@ if ($Network) {
     $arguments += "-Network"
 }
 
+$sendJitterMinutes = $(if ($NoSendJitter) { 0 } else { [Math]::Max(0, $MaxSendJitterMinutes) })
+$executionLimitMinutes = [Math]::Max(60, ($sendJitterMinutes * 2) + $RuntimePaddingMinutes)
+
 $action = New-ScheduledTaskAction -Execute "powershell.exe" -Argument ($arguments -join " ")
 $trigger = New-ScheduledTaskTrigger -Daily -At $At
 $settings = New-ScheduledTaskSettingsSet `
     -StartWhenAvailable `
     -AllowStartIfOnBatteries `
     -DontStopIfGoingOnBatteries `
-    -ExecutionTimeLimit (New-TimeSpan -Hours 12)
+    -ExecutionTimeLimit (New-TimeSpan -Minutes $executionLimitMinutes)
 
 Register-ScheduledTask `
     -TaskName $TaskName `
@@ -66,3 +70,4 @@ Register-ScheduledTask `
 
 Write-Host "Installed scheduled task '$TaskName' at $At."
 Write-Host "Runner: $scriptPath"
+Write-Host "Send jitter: up to $sendJitterMinutes minute(s); execution limit: $executionLimitMinutes minute(s)."

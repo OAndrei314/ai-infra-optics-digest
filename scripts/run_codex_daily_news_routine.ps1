@@ -60,6 +60,195 @@ function Invoke-RandomSendJitter {
     Start-Sleep -Seconds $seconds
 }
 
+function Normalize-GitPath {
+    param([string]$Path)
+    return ($Path -replace "\\", "/")
+}
+
+function Get-GitStatusPath {
+    param([string]$Line)
+    if ($Line.Length -lt 4) {
+        return $Line
+    }
+    $path = $Line.Substring(3)
+    if ($path -match " -> ") {
+        $path = ($path -split " -> ")[-1]
+    }
+    return (Normalize-GitPath $path)
+}
+
+function Assert-NoUnexpectedStagedChanges {
+    param(
+        [string]$Repo,
+        [string[]]$ExpectedPaths
+    )
+    $expected = @($ExpectedPaths | ForEach-Object { Normalize-GitPath $_ })
+    Push-Location $Repo
+    try {
+        $unexpected = @()
+        foreach ($line in @(git status --porcelain)) {
+            if ($line.Length -lt 4) {
+                continue
+            }
+            $indexStatus = $line.Substring(0, 1)
+            $path = Get-GitStatusPath $line
+            if (($indexStatus -ne " " -and $indexStatus -ne "?") -and ($expected -notcontains $path)) {
+                $unexpected += $path
+            }
+        }
+        if ($unexpected) {
+            throw "Unexpected staged changes in $Repo`: $($unexpected -join ', ')"
+        }
+    } finally {
+        Pop-Location
+    }
+}
+
+function Push-PendingRoutineCommit {
+    param(
+        [string]$Repo,
+        [string]$ExpectedSubject,
+        [string]$Path
+    )
+    Push-Location $Repo
+    try {
+        $upstream = (git rev-parse --abbrev-ref --symbolic-full-name "@{u}" 2>$null)
+        if ($LASTEXITCODE -ne 0 -or -not $upstream) {
+            return $false
+        }
+        $subjects = @(git log --format=%s "$upstream..HEAD" 2>$null)
+        if ($subjects -contains $ExpectedSubject) {
+            Append-Run-Log $Path "pushing pending routine commit in $Repo"
+            git push origin HEAD
+            return $true
+        }
+        return $false
+    } finally {
+        Pop-Location
+    }
+}
+
+function Publish-GeneratedPaths {
+    param(
+        [string]$Repo,
+        [string[]]$Paths,
+        [string]$CommitMessage,
+        [string]$Reason,
+        [string]$LogPath,
+        [switch]$UseJitter
+    )
+    $existingPaths = @()
+    foreach ($path in $Paths) {
+        if (Test-Path -LiteralPath (Join-Path $Repo $path)) {
+            $existingPaths += (Normalize-GitPath $path)
+        }
+    }
+    if (-not $existingPaths) {
+        return $false
+    }
+
+    Push-Location $Repo
+    try {
+        $pathStatus = @(git status --porcelain -- $existingPaths)
+        if ($pathStatus) {
+            Assert-NoUnexpectedStagedChanges -Repo $Repo -ExpectedPaths $existingPaths
+            git add -- $existingPaths
+            git diff --cached --quiet -- $existingPaths
+            if ($LASTEXITCODE -ne 0) {
+                if ($UseJitter) {
+                    Invoke-RandomSendJitter -Reason $Reason -Path $LogPath
+                }
+                git commit -m $CommitMessage
+                git push origin HEAD
+                return $true
+            }
+        }
+    } finally {
+        Pop-Location
+    }
+
+    return (Push-PendingRoutineCommit -Repo $Repo -ExpectedSubject $CommitMessage -Path $LogPath)
+}
+
+function Publish-ExistingRoutineRun {
+    param(
+        [object]$Metadata,
+        [string]$RunDate,
+        [string]$RepoPath,
+        [string]$LogPath
+    )
+    $published = $false
+    $repoFull = (Resolve-Path -LiteralPath $RepoPath).Path
+
+    if ($Metadata.note_path) {
+        $selectedRepo = $Metadata.selected_repo_path
+        $selectedFull = (Resolve-Path -LiteralPath $selectedRepo).Path
+        if ($selectedFull -ne $repoFull) {
+            $relativeNote = Relative-GitPath $selectedFull $Metadata.note_path
+            $published = (Publish-GeneratedPaths `
+                -Repo $selectedFull `
+                -Paths @($relativeNote) `
+                -CommitMessage "Add daily news research note $RunDate" `
+                -Reason "recovered selected repo commit/push" `
+                -LogPath $LogPath) -or $published
+        }
+    }
+
+    $stagePaths = @(
+        (Normalize-GitPath (Join-Path "digests" "$RunDate.md")),
+        (Normalize-GitPath (Join-Path "routine-reports" "$RunDate.md")),
+        (Normalize-GitPath (Join-Path "routine-reports" "$RunDate.json"))
+    )
+    if ($Metadata.note_path) {
+        $noteFull = (Resolve-Path -LiteralPath $Metadata.note_path).Path
+        if ($noteFull.StartsWith($repoFull)) {
+            $stagePaths += (Relative-GitPath $RepoPath $Metadata.note_path)
+        }
+    }
+
+    $published = (Publish-GeneratedPaths `
+        -Repo $RepoPath `
+        -Paths $stagePaths `
+        -CommitMessage "Run Codex daily news routine $RunDate" `
+        -Reason "recovered digest routine commit/push" `
+        -LogPath $LogPath) -or $published
+
+    return $published
+}
+
+function Publish-PendingRoutineRuns {
+    param(
+        [string]$RepoPath,
+        [string]$LogPath,
+        [string]$CurrentRunDate
+    )
+    $published = $false
+    $metadataDirectory = Join-Path $RepoPath "routine-reports"
+    if (-not (Test-Path -LiteralPath $metadataDirectory)) {
+        return $false
+    }
+
+    $metadataFiles = @(Get-ChildItem -LiteralPath $metadataDirectory -Filter "*.json" -ErrorAction SilentlyContinue |
+        Sort-Object Name)
+    foreach ($metadataFile in $metadataFiles) {
+        $metadataDate = [System.IO.Path]::GetFileNameWithoutExtension($metadataFile.Name)
+        if ($metadataDate -eq $CurrentRunDate) {
+            continue
+        }
+        $metadata = Get-Content -Raw -LiteralPath $metadataFile.FullName | ConvertFrom-Json
+        $didPublish = Publish-ExistingRoutineRun `
+            -Metadata $metadata `
+            -RunDate $metadataDate `
+            -RepoPath $RepoPath `
+            -LogPath $LogPath
+        if ($didPublish) {
+            Append-Run-Log $LogPath "completed recovery publish for $metadataDate"
+            $published = $true
+        }
+    }
+    return $published
+}
+
 if (-not (Test-Path -LiteralPath $RepoPath)) {
     throw "Missing repo path: $RepoPath"
 }
@@ -81,9 +270,23 @@ Append-Run-Log (Join-Path $RepoPath $LogPath) "starting Codex daily news routine
 
 try {
     $runDate = Get-Date -Format "yyyy-MM-dd"
+    $fullLogPath = Join-Path $RepoPath $LogPath
+    Publish-PendingRoutineRuns -RepoPath $RepoPath -LogPath $fullLogPath -CurrentRunDate $runDate | Out-Null
+
     $existingMetadata = Join-Path $RepoPath (Join-Path "routine-reports" "$runDate.json")
     if ((Test-Path -LiteralPath $existingMetadata) -and (-not $Force)) {
-        Append-Run-Log (Join-Path $RepoPath $LogPath) "already completed $runDate; use -Force to rerun"
+        $metadata = Get-Content -Raw -LiteralPath $existingMetadata | ConvertFrom-Json
+        $published = Publish-ExistingRoutineRun `
+            -Metadata $metadata `
+            -RunDate $runDate `
+            -RepoPath $RepoPath `
+            -LogPath $fullLogPath
+        if ($published) {
+            Append-Run-Log $fullLogPath "completed recovery publish for $runDate"
+            Write-Host "Codex daily news routine recovered and published generated work for $runDate."
+            return
+        }
+        Append-Run-Log $fullLogPath "already completed $runDate; use -Force to rerun"
         Write-Host "Codex daily news routine already completed for $runDate. Use -Force to rerun."
         return
     }
@@ -151,7 +354,6 @@ try {
     }
 
     $noteCommitted = $false
-    $fullLogPath = Join-Path $RepoPath $LogPath
     if ($metadata.note_path) {
         $selectedRepo = $metadata.selected_repo_path
         $repoFull = (Resolve-Path -LiteralPath $RepoPath).Path
