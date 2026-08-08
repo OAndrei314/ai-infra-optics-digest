@@ -8,6 +8,8 @@ param(
     [int]$DigestLimit = 24,
     [int]$RoutineLimit = 16,
     [int]$MaxSendJitterMinutes = 300,
+    [int]$MinDailyProjects = 3,
+    [int]$MaxDailyProjects = 6,
     [string]$GitAuthorName = "OAndrei314",
     [string]$GitAuthorEmail = "56999057+OAndrei314@users.noreply.github.com",
     [switch]$Network,
@@ -16,6 +18,7 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+$script:SendJitterUsed = $false
 
 function Append-Run-Log {
     param([string]$Path, [string]$Message)
@@ -47,6 +50,60 @@ function Set-CodexGitIdentity {
     }
 }
 
+function Get-CodexRepoPaths {
+    param([string]$Root)
+    $codexMarker = "Maintained by: codex-daily-routine"
+    $claudeMarker = "Maintained by: claude-daily-routine"
+    $otherRoutineRepos = @(
+        "open-weight-eval-arena",
+        "optical-fault-localization-ml",
+        "rl-hardware-calibration-lab",
+        "mcp-telemetry-server",
+        "local-inference-bench",
+        "thermal-acoustic-optimizer"
+    )
+    $personalExcludes = @(
+        "aia_tasks",
+        "polybot",
+        "UniversityProject",
+        "android_course",
+        "test",
+        "pendulums",
+        "Qojo"
+    )
+    $seedRepos = @(
+        "ai-infra-optics-digest",
+        "ai-factory-optical-twin",
+        "tinyml-quantized-telemetry-bench",
+        "silicon-photonics-telemetry-monitor",
+        "firmware-validation-agent"
+    )
+    $paths = @()
+    foreach ($item in @(Get-ChildItem -LiteralPath $Root -Directory -ErrorAction SilentlyContinue | Sort-Object Name)) {
+        if (-not (Test-Path -LiteralPath (Join-Path $item.FullName ".git"))) {
+            continue
+        }
+        if ($otherRoutineRepos -contains $item.Name -or $personalExcludes -contains $item.Name) {
+            continue
+        }
+        $readmeText = ""
+        foreach ($readmeName in @("README.md", "readme.md")) {
+            $readmePath = Join-Path $item.FullName $readmeName
+            if (Test-Path -LiteralPath $readmePath) {
+                $readmeText = Get-Content -Raw -LiteralPath $readmePath -Encoding utf8
+                break
+            }
+        }
+        if ($readmeText -match [regex]::Escape($claudeMarker)) {
+            continue
+        }
+        if (($readmeText -match [regex]::Escape($codexMarker)) -or ($seedRepos -contains $item.Name)) {
+            $paths += $item.FullName
+        }
+    }
+    return @($paths)
+}
+
 function Relative-GitPath {
     param([string]$Repo, [string]$Path)
     $repoFull = (Resolve-Path -LiteralPath $Repo).Path
@@ -66,6 +123,11 @@ function Invoke-RandomSendJitter {
         Append-Run-Log $Path "send jitter skipped for $Reason"
         return
     }
+    if ($script:SendJitterUsed) {
+        Append-Run-Log $Path "send jitter already applied; continuing with $Reason"
+        return
+    }
+    $script:SendJitterUsed = $true
     $maxSeconds = [Math]::Max(1, $MaxSendJitterMinutes * 60)
     $seconds = Get-Random -Minimum 1 -Maximum ($maxSeconds + 1)
     Append-Run-Log $Path "waiting $seconds second(s) before $Reason"
@@ -183,6 +245,42 @@ function Publish-GeneratedPaths {
     return (Push-PendingRoutineCommit -Repo $Repo -ExpectedSubject $CommitMessage -Path $LogPath)
 }
 
+function Get-MetadataNoteTargets {
+    param([object]$Metadata)
+    $targets = @()
+    $propertyNames = @($Metadata.PSObject.Properties.Name)
+
+    if (($propertyNames -contains "note_paths") -and $Metadata.note_paths) {
+        $notes = @($Metadata.note_paths) | Where-Object { $_ }
+        $repoPaths = @()
+        if (($propertyNames -contains "note_repo_paths") -and $Metadata.note_repo_paths) {
+            $repoPaths = @($Metadata.note_repo_paths)
+        }
+        for ($i = 0; $i -lt $notes.Count; $i++) {
+            $notePath = [string]$notes[$i]
+            $repoPath = $null
+            if ($i -lt $repoPaths.Count -and $repoPaths[$i]) {
+                $repoPath = [string]$repoPaths[$i]
+            } elseif (($propertyNames -contains "selected_repo_path") -and $Metadata.selected_repo_path) {
+                $repoPath = [string]$Metadata.selected_repo_path
+            } else {
+                $repoPath = Split-Path -Parent (Split-Path -Parent $notePath)
+            }
+            $targets += [pscustomobject]@{
+                RepoPath = $repoPath
+                NotePath = $notePath
+            }
+        }
+    } elseif ($Metadata.note_path) {
+        $targets += [pscustomobject]@{
+            RepoPath = [string]$Metadata.selected_repo_path
+            NotePath = [string]$Metadata.note_path
+        }
+    }
+
+    return @($targets)
+}
+
 function Publish-ExistingRoutineRun {
     param(
         [object]$Metadata,
@@ -193,11 +291,14 @@ function Publish-ExistingRoutineRun {
     $published = $false
     $repoFull = (Resolve-Path -LiteralPath $RepoPath).Path
 
-    if ($Metadata.note_path) {
-        $selectedRepo = $Metadata.selected_repo_path
-        $selectedFull = (Resolve-Path -LiteralPath $selectedRepo).Path
+    $noteTargets = @(Get-MetadataNoteTargets -Metadata $Metadata)
+    foreach ($target in $noteTargets) {
+        if (-not (Test-Path -LiteralPath $target.RepoPath) -or -not (Test-Path -LiteralPath $target.NotePath)) {
+            continue
+        }
+        $selectedFull = (Resolve-Path -LiteralPath $target.RepoPath).Path
         if ($selectedFull -ne $repoFull) {
-            $relativeNote = Relative-GitPath $selectedFull $Metadata.note_path
+            $relativeNote = Relative-GitPath $selectedFull $target.NotePath
             $published = (Publish-GeneratedPaths `
                 -Repo $selectedFull `
                 -Paths @($relativeNote) `
@@ -212,10 +313,13 @@ function Publish-ExistingRoutineRun {
         (Normalize-GitPath (Join-Path "routine-reports" "$RunDate.md")),
         (Normalize-GitPath (Join-Path "routine-reports" "$RunDate.json"))
     )
-    if ($Metadata.note_path) {
-        $noteFull = (Resolve-Path -LiteralPath $Metadata.note_path).Path
+    foreach ($target in $noteTargets) {
+        if (-not (Test-Path -LiteralPath $target.NotePath)) {
+            continue
+        }
+        $noteFull = (Resolve-Path -LiteralPath $target.NotePath).Path
         if ($noteFull.StartsWith($repoFull)) {
-            $stagePaths += (Relative-GitPath $RepoPath $Metadata.note_path)
+            $stagePaths += (Relative-GitPath $RepoPath $target.NotePath)
         }
     }
 
@@ -271,14 +375,6 @@ if ($logDirectory) {
     New-Item -ItemType Directory -Force -Path $logDirectory | Out-Null
 }
 
-$codexRepos = @(
-    "ai-infra-optics-digest",
-    "ai-factory-optical-twin",
-    "tinyml-quantized-telemetry-bench",
-    "silicon-photonics-telemetry-monitor",
-    "firmware-validation-agent"
-)
-
 Append-Run-Log (Join-Path $RepoPath $LogPath) "starting Codex daily news routine"
 
 try {
@@ -304,12 +400,9 @@ try {
         return
     }
 
-    foreach ($name in $codexRepos) {
-        $path = Join-Path $WorkspaceRoot $name
-        if (Test-Path -LiteralPath (Join-Path $path ".git")) {
-            Assert-Clean-GitRepo $path
-            Set-CodexGitIdentity $path
-        }
+    foreach ($path in @(Get-CodexRepoPaths -Root $WorkspaceRoot)) {
+        Assert-Clean-GitRepo $path
+        Set-CodexGitIdentity $path
     }
 
     Push-Location $RepoPath
@@ -350,6 +443,8 @@ try {
             "--out", $routineDir,
             "--date", $runDate,
             "--limit", "$RoutineLimit",
+            "--min-repos", "$MinDailyProjects",
+            "--max-repos", "$MaxDailyProjects",
             "--metadata-out", $metadataPath,
             "--write-note"
         )
@@ -369,25 +464,25 @@ try {
         Pop-Location
     }
 
-    $noteCommitted = $false
-    if ($metadata.note_path) {
-        $selectedRepo = $metadata.selected_repo_path
-        $repoFull = (Resolve-Path -LiteralPath $RepoPath).Path
-        $selectedFull = (Resolve-Path -LiteralPath $selectedRepo).Path
+    $noteCommitCount = 0
+    $repoFull = (Resolve-Path -LiteralPath $RepoPath).Path
+    $noteTargets = @(Get-MetadataNoteTargets -Metadata $metadata)
+    foreach ($target in $noteTargets) {
+        if (-not (Test-Path -LiteralPath $target.RepoPath) -or -not (Test-Path -LiteralPath $target.NotePath)) {
+            continue
+        }
+        $selectedFull = (Resolve-Path -LiteralPath $target.RepoPath).Path
         if ($selectedFull -ne $repoFull) {
-            Push-Location $selectedFull
-            try {
-                $relativeNote = Relative-GitPath $selectedFull $metadata.note_path
-                git add -- $relativeNote
-                git diff --cached --quiet
-                if ($LASTEXITCODE -ne 0) {
-                    Invoke-RandomSendJitter -Reason "selected repo commit/push" -Path $fullLogPath
-                    git commit -m "Add daily news research note $($metadata.run_date)"
-                    git push origin HEAD
-                    $noteCommitted = $true
-                }
-            } finally {
-                Pop-Location
+            $relativeNote = Relative-GitPath $selectedFull $target.NotePath
+            $published = Publish-GeneratedPaths `
+                -Repo $selectedFull `
+                -Paths @($relativeNote) `
+                -CommitMessage "Add daily news research note $($metadata.run_date)" `
+                -Reason "selected repo commit/push" `
+                -LogPath $fullLogPath `
+                -UseJitter
+            if ($published) {
+                $noteCommitCount += 1
             }
         }
     }
@@ -395,11 +490,13 @@ try {
     Push-Location $RepoPath
     try {
         $stagePaths = @($digestPath, $reportPath, $metadataPath)
-        if ($metadata.note_path) {
-            $repoFull = (Resolve-Path -LiteralPath $RepoPath).Path
-            $noteFull = (Resolve-Path -LiteralPath $metadata.note_path).Path
+        foreach ($target in $noteTargets) {
+            if (-not (Test-Path -LiteralPath $target.NotePath)) {
+                continue
+            }
+            $noteFull = (Resolve-Path -LiteralPath $target.NotePath).Path
             if ($noteFull.StartsWith($repoFull)) {
-                $stagePaths += (Relative-GitPath $RepoPath $metadata.note_path)
+                $stagePaths += (Relative-GitPath $RepoPath $target.NotePath)
             }
         }
         git add -- $stagePaths
@@ -413,7 +510,8 @@ try {
         Pop-Location
     }
 
-    Append-Run-Log (Join-Path $RepoPath $LogPath) "completed $runDate; selected=$($metadata.selected_repo); noteCommitted=$noteCommitted"
+    $selectedLabel = if ($metadata.selected_repos) { @($metadata.selected_repos) -join "," } else { $metadata.selected_repo }
+    Append-Run-Log (Join-Path $RepoPath $LogPath) "completed $runDate; selected=$selectedLabel; noteCommitCount=$noteCommitCount"
 } catch {
     Append-Run-Log (Join-Path $RepoPath $LogPath) "failed: $($_.Exception.Message)"
     throw

@@ -70,7 +70,12 @@ Report "ok" "Scheduled task" "$TaskName installed; state=$($task.State)"
 $actionArgs = $task.Actions[0].Arguments
 $jitterArg = Get-TaskArgumentValue -Arguments $actionArgs -Name "MaxSendJitterMinutes"
 $jitterMinutes = $(if ($jitterArg) { [int]$jitterArg } else { 300 })
+$minProjectsArg = Get-TaskArgumentValue -Arguments $actionArgs -Name "MinDailyProjects"
+$maxProjectsArg = Get-TaskArgumentValue -Arguments $actionArgs -Name "MaxDailyProjects"
+$minProjects = $(if ($minProjectsArg) { [int]$minProjectsArg } else { 3 })
+$maxProjects = $(if ($maxProjectsArg) { [int]$maxProjectsArg } else { 6 })
 $limitMinutes = Convert-TaskDurationToMinutes $task.Settings.ExecutionTimeLimit
 $requiredMinutes = ($jitterMinutes * 2) + 120
+Report ($(if ($minProjects -ge 1 -and $maxProjects -ge $minProjects) { "ok" } else { "!!" })) "Daily project batch" "min=$minProjects, max=$maxProjects"
 Report ($(if ($limitMinutes -ge $requiredMinutes) { "ok" } else { "!!" })) "Runtime budget" "jitter=${jitterMinutes}m, limit=${limitMinutes}m, required>=${requiredMinutes}m"
 Report ($(if ($info.LastTaskResult -eq 0) { "ok" } else { "!!" })) "Last run" "result=$($info.LastTaskResult), last=$($info.LastRunTime), next=$($info.NextRunTime)"

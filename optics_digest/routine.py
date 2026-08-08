@@ -1,12 +1,13 @@
 """News-aware multi-repo routine for the Codex-owned portfolio slice.
 
 This module is deliberately conservative. It does not invent code changes. It reads live
-news/digest items, selects the least-recent Codex-owned repo, and writes an auditable
-research note only when there is relevant source-linked material to justify a commit.
+news/digest items, selects a randomized daily batch of Codex-owned repos, and writes
+auditable research notes only when there is source-linked material to justify a commit.
 """
 from __future__ import annotations
 
 import json
+import random
 import re
 import subprocess
 from dataclasses import asdict, dataclass
@@ -136,6 +137,11 @@ class RoutineRun:
     selected_repo_path: str
     report_path: str
     note_path: str | None
+    selected_repos: tuple[str, ...]
+    selected_repo_paths: tuple[str, ...]
+    note_repos: tuple[str, ...]
+    note_repo_paths: tuple[str, ...]
+    note_paths: tuple[str, ...]
     sources_checked: tuple[str, ...]
     skipped_repos: tuple[str, ...]
     extraordinary_items: tuple[str, ...]
@@ -177,6 +183,33 @@ def choose_repo(candidates: tuple[RepoCandidate, ...]) -> RepoCandidate:
     return sorted(candidates, key=lambda repo: (repo.last_pushed_unix, repo.name))[0]
 
 
+def choose_repos(
+    candidates: tuple[RepoCandidate, ...],
+    min_count: int = 3,
+    max_count: int = 6,
+    required_repo: str | None = "ai-infra-optics-digest",
+    rng: random.Random | None = None,
+) -> tuple[RepoCandidate, ...]:
+    if not candidates:
+        raise ValueError("no Codex-owned candidate repos found")
+    rng = rng or random.SystemRandom()
+    upper = min(max(1, max_count), len(candidates))
+    lower = min(max(1, min_count), upper)
+    target_count = rng.randint(lower, upper)
+
+    by_name = {repo.name: repo for repo in candidates}
+    selected: list[RepoCandidate] = []
+    if required_repo and required_repo in by_name:
+        selected.append(by_name[required_repo])
+
+    remaining = [repo for repo in candidates if repo not in selected]
+    needed = max(0, target_count - len(selected))
+    if needed:
+        selected.extend(rng.sample(remaining, k=min(needed, len(remaining))))
+
+    return tuple(sorted(selected, key=lambda repo: repo.name))
+
+
 def scan_news(
     sources_path: str | Path,
     run_date: date,
@@ -203,36 +236,58 @@ def run_news_routine(
     limit: int = 16,
     write_note: bool = False,
     metadata_out: str | Path | None = None,
+    min_repo_count: int = 3,
+    max_repo_count: int = 6,
+    selection_seed: str | None = None,
 ) -> RoutineRun:
     candidates, skipped = discover_repos(root)
-    selected = choose_repo(candidates)
+    rng = random.Random(selection_seed) if selection_seed is not None else None
+    selected_repos = choose_repos(
+        candidates,
+        min_count=min_repo_count,
+        max_count=max_repo_count,
+        required_repo="ai-infra-optics-digest",
+        rng=rng,
+    )
+    selected = next(
+        (repo for repo in selected_repos if repo.name == "ai-infra-optics-digest"),
+        selected_repos[0],
+    )
     entries, sources_checked = scan_news(sources_path, run_date, allow_network, limit)
-    relevant = _relevant_entries(entries, selected.name)
+    entries_by_repo = {repo.name: _entries_for_repo_note(entries, repo.name) for repo in selected_repos}
     extraordinary = tuple(entry.item.title for entry in entries if _is_extraordinary(entry))
 
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     report_path = out_dir / f"{run_date.isoformat()}.md"
-    note_path: Path | None = None
+    note_paths: list[Path] = []
+    note_repos: list[RepoCandidate] = []
     action = "logged_news_scan"
-    if write_note and relevant:
-        note_dir = Path(selected.path) / "research-notes"
-        note_dir.mkdir(parents=True, exist_ok=True)
-        note_path = note_dir / f"{run_date.isoformat()}.md"
-        note_path.write_text(render_repo_note(selected, run_date, relevant, extraordinary), encoding="utf-8")
-        action = "wrote_repo_research_note"
+    if write_note:
+        for repo in selected_repos:
+            note_entries = entries_by_repo[repo.name]
+            if not note_entries:
+                continue
+            note_dir = Path(repo.path) / "research-notes"
+            note_dir.mkdir(parents=True, exist_ok=True)
+            note_path = note_dir / f"{run_date.isoformat()}.md"
+            note_path.write_text(render_repo_note(repo, run_date, note_entries, extraordinary), encoding="utf-8")
+            note_paths.append(note_path)
+            note_repos.append(repo)
+        if note_paths:
+            action = "wrote_multi_repo_research_notes"
 
     report_path.write_text(
         render_routine_report(
             run_date=run_date,
-            selected=selected,
+            selected_repos=selected_repos,
             candidates=candidates,
             skipped=skipped,
             entries=entries,
-            relevant=relevant,
+            entries_by_repo=entries_by_repo,
             extraordinary=extraordinary,
             sources_checked=sources_checked,
-            note_path=note_path,
+            note_paths=tuple(note_paths),
         ),
         encoding="utf-8",
     )
@@ -242,7 +297,12 @@ def run_news_routine(
         selected_repo=selected.name,
         selected_repo_path=selected.path,
         report_path=str(report_path),
-        note_path=str(note_path) if note_path else None,
+        note_path=str(note_paths[0]) if note_paths else None,
+        selected_repos=tuple(repo.name for repo in selected_repos),
+        selected_repo_paths=tuple(repo.path for repo in selected_repos),
+        note_repos=tuple(repo.name for repo in note_repos),
+        note_repo_paths=tuple(repo.path for repo in note_repos),
+        note_paths=tuple(str(path) for path in note_paths),
         sources_checked=sources_checked,
         skipped_repos=skipped,
         extraordinary_items=extraordinary,
@@ -304,21 +364,23 @@ def render_repo_note(
 
 def render_routine_report(
     run_date: date,
-    selected: RepoCandidate,
+    selected_repos: tuple[RepoCandidate, ...],
     candidates: tuple[RepoCandidate, ...],
     skipped: tuple[str, ...],
     entries: list[DigestEntry],
-    relevant: list[DigestEntry],
+    entries_by_repo: dict[str, list[DigestEntry]],
     extraordinary: tuple[str, ...],
     sources_checked: tuple[str, ...],
-    note_path: Path | None,
+    note_paths: tuple[Path, ...],
 ) -> str:
+    selected_names = ", ".join(f"`{repo.name}`" for repo in selected_repos)
+    note_path_text = ", ".join(f"`{path}`" for path in note_paths) if note_paths else "n/a"
     lines = [
         f"# Codex Daily News Routine - {run_date.isoformat()}",
         "",
-        f"- Selected repo: `{selected.name}`",
-        f"- Action: {'wrote research note' if note_path else 'news scan only'}",
-        f"- Note path: `{note_path}`" if note_path else "- Note path: n/a",
+        f"- Selected repos: {selected_names}",
+        f"- Action: {'wrote research notes' if note_paths else 'news scan only'}",
+        f"- Note paths: {note_path_text}",
         f"- Candidate repos: {len(candidates)}",
         f"- Skipped repos: {len(skipped)}",
         "",
@@ -337,12 +399,15 @@ def render_routine_report(
         lines.extend(f"- {title}" for title in extraordinary[:8])
     else:
         lines.append("- None crossed the deterministic keyword threshold.")
-    lines.extend(["", "## Relevant Items For Selected Repo", ""])
-    if relevant:
-        for entry in relevant[:8]:
-            lines.append(f"- {entry.item.title} ({entry.item.source})")
-    else:
-        lines.append("- No high-relevance item found; no repo note was written.")
+    lines.extend(["", "## Relevant Items For Selected Repos", ""])
+    for repo in selected_repos:
+        lines.extend(["", f"### {repo.name}", ""])
+        repo_entries = entries_by_repo.get(repo.name, [])
+        if repo_entries:
+            for entry in repo_entries[:8]:
+                lines.append(f"- {entry.item.title} ({entry.item.source})")
+        else:
+            lines.append("- No source-linked item was available for a repo note.")
     if run_date >= date(2027, 8, 1):
         lines.extend(["", "## Human Review Flag", "", "Routine is within one week of the planned one-year review window."])
     return "\n".join(lines) + "\n"
@@ -432,6 +497,16 @@ def _relevant_entries(entries: list[DigestEntry], repo_name: str) -> list[Digest
             scored.append((score, entry))
     scored.sort(key=lambda pair: (-pair[0], pair[1].item.source.lower(), pair[1].item.title.lower()))
     return [entry for _, entry in scored]
+
+
+def _entries_for_repo_note(entries: list[DigestEntry], repo_name: str) -> list[DigestEntry]:
+    relevant = _relevant_entries(entries, repo_name)
+    if relevant:
+        return relevant
+    extraordinary = [entry for entry in entries if _is_extraordinary(entry)]
+    if extraordinary:
+        return extraordinary
+    return entries[:3]
 
 
 def _experiment_candidate(repo_name: str, entries: list[DigestEntry], extraordinary: tuple[str, ...]) -> str:

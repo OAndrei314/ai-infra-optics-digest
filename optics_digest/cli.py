@@ -35,8 +35,10 @@ def main(argv: list[str] | None = None) -> int:
     routine_p.add_argument("--out", default="routine-reports", help="routine report output directory")
     routine_p.add_argument("--date", help="routine date in YYYY-MM-DD form")
     routine_p.add_argument("--limit", type=int, default=16, help="maximum news items to inspect")
+    routine_p.add_argument("--min-repos", type=int, default=3, help="minimum daily project repos to touch")
+    routine_p.add_argument("--max-repos", type=int, default=6, help="maximum daily project repos to touch")
     routine_p.add_argument("--metadata-out", help="optional JSON metadata path")
-    routine_p.add_argument("--write-note", action="store_true", help="write a dated note to the selected repo")
+    routine_p.add_argument("--write-note", action="store_true", help="write dated notes to the selected repos")
     routine_p.add_argument("--network", action="store_true", help="allow HTTP(S) news sources")
 
     args = parser.parse_args(argv)
@@ -70,15 +72,17 @@ def main(argv: list[str] | None = None) -> int:
                 limit=args.limit,
                 write_note=args.write_note,
                 metadata_out=args.metadata_out,
+                min_repo_count=args.min_repos,
+                max_repo_count=args.max_repos,
             )
         except Exception as exc:
             print(f"error: {exc}", file=sys.stderr)
             return 1
-        print(f"selected repo: {result.selected_repo}")
+        print(f"selected repos: {', '.join(result.selected_repos)}")
         print(f"action: {result.action}")
         print(f"report: {result.report_path}")
-        if result.note_path:
-            print(f"note: {result.note_path}")
+        for note_path in result.note_paths:
+            print(f"note: {note_path}")
         return 0
 
     return 1

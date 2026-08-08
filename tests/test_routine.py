@@ -1,10 +1,13 @@
+import random
 from datetime import date
+from pathlib import Path
 
 from optics_digest.routine import (
     CLAUDE_MARKER,
     CODEX_MARKER,
     RepoCandidate,
     choose_repo,
+    choose_repos,
     discover_repos,
     run_news_routine,
 )
@@ -43,6 +46,27 @@ def test_choose_repo_uses_oldest_last_pushed_timestamp():
     assert choose_repo(candidates).name == "old"
 
 
+def test_choose_repos_honors_bounds_and_required_repo():
+    root = "C:/repos"
+    candidates = tuple(
+        RepoCandidate(name, root, "main", "", index, CODEX_MARKER)
+        for index, name in enumerate(
+            (
+                "ai-infra-optics-digest",
+                "ai-factory-optical-twin",
+                "tinyml-quantized-telemetry-bench",
+                "silicon-photonics-telemetry-monitor",
+                "firmware-validation-agent",
+            )
+        )
+    )
+
+    selected = choose_repos(candidates, min_count=3, max_count=6, rng=random.Random(7))
+
+    assert 3 <= len(selected) <= 5
+    assert "ai-infra-optics-digest" in {repo.name for repo in selected}
+
+
 def test_run_news_routine_writes_report_and_note_from_fixture_news(tmp_path):
     selected = _fake_repo(tmp_path, "ai-factory-optical-twin", f"# Twin\n\n{CODEX_MARKER}\n")
 
@@ -64,3 +88,34 @@ def test_run_news_routine_writes_report_and_note_from_fixture_news(tmp_path):
     note = (selected / "research-notes" / "2026-08-07.md").read_text(encoding="utf-8")
     assert "Relevant Signals" in note
     assert "Co-packaged optics" in note
+
+
+def test_run_news_routine_writes_randomized_multi_repo_notes(tmp_path):
+    for name in (
+        "ai-infra-optics-digest",
+        "ai-factory-optical-twin",
+        "tinyml-quantized-telemetry-bench",
+        "silicon-photonics-telemetry-monitor",
+        "firmware-validation-agent",
+    ):
+        _fake_repo(tmp_path, name, f"# {name}\n\n{CODEX_MARKER}\n")
+
+    result = run_news_routine(
+        root=tmp_path,
+        sources_path="configs/feeds.yaml",
+        out_dir=tmp_path / "routine-reports",
+        run_date=date(2026, 8, 8),
+        allow_network=False,
+        limit=6,
+        write_note=True,
+        metadata_out=tmp_path / "routine-reports" / "run.json",
+        min_repo_count=3,
+        max_repo_count=6,
+        selection_seed="daily-test",
+    )
+
+    assert 3 <= len(result.selected_repos) <= 5
+    assert "ai-infra-optics-digest" in result.selected_repos
+    assert len(result.note_paths) == len(result.selected_repos)
+    for note_path in result.note_paths:
+        assert "Daily Research Note" in Path(note_path).read_text(encoding="utf-8")

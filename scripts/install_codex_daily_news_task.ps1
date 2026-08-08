@@ -5,6 +5,8 @@ param(
     [string]$At = "09:00",
     [int]$MaxSendJitterMinutes = 300,
     [int]$RuntimePaddingMinutes = 120,
+    [int]$MinDailyProjects = 3,
+    [int]$MaxDailyProjects = 6,
     [string]$GitAuthorName = "OAndrei314",
     [string]$GitAuthorEmail = "56999057+OAndrei314@users.noreply.github.com",
     [switch]$NoSendJitter,
@@ -43,6 +45,8 @@ $arguments = @(
     "-WorkspaceRoot", "`"$WorkspaceRoot`"",
     "-RepoPath", "`"$RepoPath`"",
     "-MaxSendJitterMinutes", "$MaxSendJitterMinutes",
+    "-MinDailyProjects", "$MinDailyProjects",
+    "-MaxDailyProjects", "$MaxDailyProjects",
     "-GitAuthorName", "`"$GitAuthorName`"",
     "-GitAuthorEmail", "`"$GitAuthorEmail`""
 )
@@ -75,3 +79,4 @@ Register-ScheduledTask `
 Write-Host "Installed scheduled task '$TaskName' at $At."
 Write-Host "Runner: $scriptPath"
 Write-Host "Send jitter: up to $sendJitterMinutes minute(s); execution limit: $executionLimitMinutes minute(s)."
+Write-Host "Daily project batch: minimum $MinDailyProjects, maximum $MaxDailyProjects."

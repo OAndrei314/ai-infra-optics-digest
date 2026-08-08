@@ -89,10 +89,10 @@ The generalized routine extends the digest-only job:
 ```
 
 It rotates live sources day to day, writes `routine-reports/YYYY-MM-DD.md`, filters out
-repos marked `Maintained by: claude-daily-routine`, selects the least-recent Codex-owned
-repo, and writes a dated `research-notes/YYYY-MM-DD.md` only when source-linked news is
-relevant to that repo. It stages exact generated paths, randomizes send timing by up to
-5 hours, and refuses dirty working trees.
+repos marked `Maintained by: claude-daily-routine`, selects a random Codex-owned project
+batch, and writes dated `research-notes/YYYY-MM-DD.md` files only when source-linked news is
+relevant to those repos. It stages exact generated paths, picks a random daily batch of
+3 to 6 projects, randomizes send timing by up to 5 hours, and refuses dirty working trees.
 
 ## Feed config
 
