@@ -30,6 +30,19 @@ function Convert-TaskDurationToMinutes {
     return [int][Math]::Floor(([System.Xml.XmlConvert]::ToTimeSpan([string]$Duration)).TotalMinutes)
 }
 
+function Get-PublishWindowMinutes {
+    param([string]$Start, [string]$End)
+    $startSpan = [TimeSpan]::Parse($Start, [System.Globalization.CultureInfo]::InvariantCulture)
+    $endSpan = [TimeSpan]::Parse($End, [System.Globalization.CultureInfo]::InvariantCulture)
+    if ($startSpan -eq $endSpan) {
+        return 0
+    }
+    if ($endSpan -lt $startSpan) {
+        return [int](($endSpan.Add([TimeSpan]::FromDays(1)) - $startSpan).TotalMinutes)
+    }
+    return [int](($endSpan - $startSpan).TotalMinutes)
+}
+
 if (-not (Test-Path -LiteralPath $RepoPath)) {
     Report "!!" "Repo path" "missing: $RepoPath"
     exit 1
@@ -69,13 +82,19 @@ $info = Get-ScheduledTaskInfo -TaskName $TaskName
 Report "ok" "Scheduled task" "$TaskName installed; state=$($task.State)"
 $actionArgs = $task.Actions[0].Arguments
 $jitterArg = Get-TaskArgumentValue -Arguments $actionArgs -Name "MaxSendJitterMinutes"
-$jitterMinutes = $(if ($jitterArg) { [int]$jitterArg } else { 300 })
+$jitterMinutes = $(if ($jitterArg) { [int]$jitterArg } else { 540 })
+$publishWindowStartArg = Get-TaskArgumentValue -Arguments $actionArgs -Name "PublishWindowStart"
+$publishWindowEndArg = Get-TaskArgumentValue -Arguments $actionArgs -Name "PublishWindowEnd"
+$publishWindowStart = $(if ($publishWindowStartArg) { $publishWindowStartArg } else { "17:00" })
+$publishWindowEnd = $(if ($publishWindowEndArg) { $publishWindowEndArg } else { "02:00" })
 $minProjectsArg = Get-TaskArgumentValue -Arguments $actionArgs -Name "MinDailyProjects"
 $maxProjectsArg = Get-TaskArgumentValue -Arguments $actionArgs -Name "MaxDailyProjects"
 $minProjects = $(if ($minProjectsArg) { [int]$minProjectsArg } else { 5 })
 $maxProjects = $(if ($maxProjectsArg) { [int]$maxProjectsArg } else { 10 })
 $limitMinutes = Convert-TaskDurationToMinutes $task.Settings.ExecutionTimeLimit
-$requiredMinutes = ($jitterMinutes * 2) + 120
+$publishWindowMinutes = Get-PublishWindowMinutes -Start $publishWindowStart -End $publishWindowEnd
+$requiredMinutes = 1440 + $publishWindowMinutes + 120
 Report ($(if ($minProjects -ge 1 -and $maxProjects -ge $minProjects) { "ok" } else { "!!" })) "Daily project batch" "min=$minProjects, max=$maxProjects"
-Report ($(if ($limitMinutes -ge $requiredMinutes) { "ok" } else { "!!" })) "Runtime budget" "jitter=${jitterMinutes}m, limit=${limitMinutes}m, required>=${requiredMinutes}m"
+Report ($(if ($publishWindowStart -eq "17:00" -and $publishWindowEnd -eq "02:00") { "ok" } else { "!!" })) "Publish window" "window=$publishWindowStart-$publishWindowEnd, legacyJitterCap=${jitterMinutes}m"
+Report ($(if ($limitMinutes -ge $requiredMinutes) { "ok" } else { "!!" })) "Runtime budget" "window=${publishWindowMinutes}m, limit=${limitMinutes}m, required>=${requiredMinutes}m"
 Report ($(if ($info.LastTaskResult -eq 0) { "ok" } else { "!!" })) "Last run" "result=$($info.LastTaskResult), last=$($info.LastRunTime), next=$($info.NextRunTime)"

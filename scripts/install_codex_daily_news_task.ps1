@@ -2,8 +2,10 @@ param(
     [string]$TaskName = "OAndrei314 Codex Daily News Routine",
     [string]$WorkspaceRoot = "C:\Users\ojoca\Documents\github_projects",
     [string]$RepoPath = "C:\Users\ojoca\Documents\github_projects\ai-infra-optics-digest",
-    [string]$At = "09:00",
-    [int]$MaxSendJitterMinutes = 300,
+    [string]$At = "17:00",
+    [int]$MaxSendJitterMinutes = 540,
+    [string]$PublishWindowStart = "17:00",
+    [string]$PublishWindowEnd = "02:00",
     [int]$RuntimePaddingMinutes = 120,
     [int]$MinDailyProjects = 5,
     [int]$MaxDailyProjects = 10,
@@ -14,6 +16,19 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+
+function Get-PublishWindowMinutes {
+    param([string]$Start, [string]$End)
+    $startSpan = [TimeSpan]::Parse($Start, [System.Globalization.CultureInfo]::InvariantCulture)
+    $endSpan = [TimeSpan]::Parse($End, [System.Globalization.CultureInfo]::InvariantCulture)
+    if ($startSpan -eq $endSpan) {
+        throw "Publish window start and end must be different."
+    }
+    if ($endSpan -lt $startSpan) {
+        return [int](($endSpan.Add([TimeSpan]::FromDays(1)) - $startSpan).TotalMinutes)
+    }
+    return [int](($endSpan - $startSpan).TotalMinutes)
+}
 
 $scriptPath = Join-Path $RepoPath "scripts\run_codex_daily_news_routine.ps1"
 if (-not (Test-Path -LiteralPath $scriptPath)) {
@@ -45,6 +60,8 @@ $arguments = @(
     "-WorkspaceRoot", "`"$WorkspaceRoot`"",
     "-RepoPath", "`"$RepoPath`"",
     "-MaxSendJitterMinutes", "$MaxSendJitterMinutes",
+    "-PublishWindowStart", "`"$PublishWindowStart`"",
+    "-PublishWindowEnd", "`"$PublishWindowEnd`"",
     "-MinDailyProjects", "$MinDailyProjects",
     "-MaxDailyProjects", "$MaxDailyProjects",
     "-GitAuthorName", "`"$GitAuthorName`"",
@@ -58,7 +75,8 @@ if ($Network) {
 }
 
 $sendJitterMinutes = $(if ($NoSendJitter) { 0 } else { [Math]::Max(0, $MaxSendJitterMinutes) })
-$executionLimitMinutes = [Math]::Max(60, ($sendJitterMinutes * 2) + $RuntimePaddingMinutes)
+$publishWindowMinutes = Get-PublishWindowMinutes -Start $PublishWindowStart -End $PublishWindowEnd
+$executionLimitMinutes = [Math]::Max(60, 1440 + $publishWindowMinutes + $RuntimePaddingMinutes)
 
 $action = New-ScheduledTaskAction -Execute "powershell.exe" -Argument ($arguments -join " ")
 $trigger = New-ScheduledTaskTrigger -Daily -At $At
@@ -78,5 +96,5 @@ Register-ScheduledTask `
 
 Write-Host "Installed scheduled task '$TaskName' at $At."
 Write-Host "Runner: $scriptPath"
-Write-Host "Send jitter: up to $sendJitterMinutes minute(s); execution limit: $executionLimitMinutes minute(s)."
+Write-Host "Publish window: $PublishWindowStart-$PublishWindowEnd; legacy jitter cap: $sendJitterMinutes minute(s); execution limit: $executionLimitMinutes minute(s)."
 Write-Host "Daily project batch: minimum $MinDailyProjects, maximum $MaxDailyProjects."

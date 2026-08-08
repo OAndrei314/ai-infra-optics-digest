@@ -7,7 +7,9 @@ param(
     [string]$LogPath = "logs\codex_daily_news_routine.log",
     [int]$DigestLimit = 24,
     [int]$RoutineLimit = 16,
-    [int]$MaxSendJitterMinutes = 300,
+    [int]$MaxSendJitterMinutes = 540,
+    [string]$PublishWindowStart = "17:00",
+    [string]$PublishWindowEnd = "02:00",
     [int]$MinDailyProjects = 5,
     [int]$MaxDailyProjects = 10,
     [string]$GitAuthorName = "OAndrei314",
@@ -128,11 +130,65 @@ function Invoke-RandomSendJitter {
         return
     }
     $script:SendJitterUsed = $true
-    $maxSeconds = [Math]::Max(1, $MaxSendJitterMinutes * 60)
-    $seconds = Get-Random -Minimum 1 -Maximum ($maxSeconds + 1)
-    Append-Run-Log $Path "waiting $seconds second(s) before $Reason"
-    Write-Host "Randomized send jitter: waiting $seconds second(s) before $Reason."
+    $window = Get-NextPublishWindow -Now (Get-Date) -Start (Convert-PublishWindowTime $PublishWindowStart) -End (Convert-PublishWindowTime $PublishWindowEnd)
+    $now = Get-Date
+    $earliestTarget = if ($now -lt $window.Start) { $window.Start } else { $now.AddSeconds(1) }
+    if ($earliestTarget -ge $window.End) {
+        $window = Get-NextPublishWindow -Now $window.End.AddSeconds(1) -Start (Convert-PublishWindowTime $PublishWindowStart) -End (Convert-PublishWindowTime $PublishWindowEnd)
+        $earliestTarget = $window.Start
+    }
+    $latestTarget = $window.End.AddSeconds(-1)
+    if ($earliestTarget -gt $latestTarget) {
+        $target = $earliestTarget
+    } else {
+        $rangeSeconds = [int][Math]::Floor(($latestTarget - $earliestTarget).TotalSeconds)
+        $offsetSeconds = Get-Random -Minimum 0 -Maximum ($rangeSeconds + 1)
+        $target = $earliestTarget.AddSeconds($offsetSeconds)
+    }
+    $seconds = [int][Math]::Ceiling(($target - $now).TotalSeconds)
+    if ($seconds -lt 1) {
+        $seconds = 1
+        $target = $now.AddSeconds(1)
+    }
+    Append-Run-Log $Path "waiting $seconds second(s) until $($target.ToString('yyyy-MM-dd HH:mm:ss')) before $Reason; publish window $PublishWindowStart-$PublishWindowEnd"
+    Write-Host "Randomized publish window: waiting $seconds second(s), target $($target.ToString('yyyy-MM-dd HH:mm:ss')), before $Reason."
     Start-Sleep -Seconds $seconds
+}
+
+function Convert-PublishWindowTime {
+    param([string]$Value)
+    try {
+        return [TimeSpan]::Parse($Value, [System.Globalization.CultureInfo]::InvariantCulture)
+    } catch {
+        throw "Invalid publish window time '$Value'. Use HH:mm, for example 17:00."
+    }
+}
+
+function Get-NextPublishWindow {
+    param(
+        [datetime]$Now,
+        [TimeSpan]$Start,
+        [TimeSpan]$End
+    )
+    if ($End -eq $Start) {
+        throw "Publish window start and end must be different."
+    }
+    if ($End -lt $Start) {
+        $previousStart = $Now.Date.AddDays(-1).Add($Start)
+        $previousEnd = $Now.Date.Add($End)
+        if ($Now -lt $previousEnd) {
+            return [pscustomobject]@{ Start = $previousStart; End = $previousEnd }
+        }
+        $todayStart = $Now.Date.Add($Start)
+        $todayEnd = $Now.Date.AddDays(1).Add($End)
+        return [pscustomobject]@{ Start = $todayStart; End = $todayEnd }
+    }
+    $todayStart = $Now.Date.Add($Start)
+    $todayEnd = $Now.Date.Add($End)
+    if ($Now -lt $todayEnd) {
+        return [pscustomobject]@{ Start = $todayStart; End = $todayEnd }
+    }
+    return [pscustomobject]@{ Start = $todayStart.AddDays(1); End = $todayEnd.AddDays(1) }
 }
 
 function Normalize-GitPath {

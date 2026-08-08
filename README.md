@@ -84,7 +84,7 @@ The generalized routine extends the digest-only job:
 
 ```powershell
 .\scripts\run_codex_daily_news_routine.ps1 -Network
-.\scripts\install_codex_daily_news_task.ps1 -Network -At "09:00"
+.\scripts\install_codex_daily_news_task.ps1 -Network -At "17:00" -PublishWindowStart "17:00" -PublishWindowEnd "02:00"
 .\scripts\check_codex_daily_news_status.ps1
 ```
 
@@ -93,7 +93,8 @@ repos marked `Maintained by: claude-daily-routine`, selects a random Codex-owned
 batch, and writes dated `research-notes/YYYY-MM-DD.md` files only when source-linked news is
 relevant to those repos. It stages exact generated paths, picks a hot-news-biased random
 daily batch of 5 to 10 projects, explains hotness scores with matched terms/source/recency,
-randomizes send timing by up to 5 hours, and refuses dirty working trees.
+randomizes actual publish timing inside the 17:00-02:00 Europe/Berlin window, and refuses
+dirty working trees.
 
 ## Feed config
 
