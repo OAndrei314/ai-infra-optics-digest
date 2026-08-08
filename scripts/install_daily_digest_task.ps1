@@ -1,0 +1,86 @@
+param(
+    [string]$TaskName = "OAndrei314 Daily AI Infra Optics Digest",
+    [string]$RepoPath = "C:\Users\ojoca\Documents\github_projects\ai-infra-optics-digest",
+    [string]$At = "09:00",
+    [int]$MaxSendJitterMinutes = 300,
+    [int]$RuntimePaddingMinutes = 120,
+    [string]$GitAuthorName = "OAndrei314",
+    [string]$GitAuthorEmail = "56999057+OAndrei314@users.noreply.github.com",
+    [switch]$Network,
+    [switch]$NoSendJitter,
+    [switch]$CreatePullRequest,
+    [switch]$SkipReadinessCheck
+)
+
+$ErrorActionPreference = "Stop"
+
+$scriptPath = Join-Path $RepoPath "scripts\run_daily_digest_push.ps1"
+if (-not (Test-Path -LiteralPath $scriptPath)) {
+    throw "Missing scheduler runner: $scriptPath"
+}
+
+if (-not $SkipReadinessCheck) {
+    Push-Location $RepoPath
+    try {
+        & "C:\Program Files\GitHub CLI\gh.exe" auth status *> $null
+        if ($LASTEXITCODE -ne 0) {
+            throw "GitHub CLI is not authenticated. Run gh auth login before installing the task."
+        }
+
+        git remote get-url origin *> $null
+        if ($LASTEXITCODE -ne 0) {
+            throw "No origin remote is configured. Publish the repo before installing the task."
+        }
+
+        $dirty = git status --porcelain
+        if ($dirty) {
+            throw "Working tree is dirty. Commit or discard local changes before installing the task."
+        }
+    } finally {
+        Pop-Location
+    }
+}
+
+$arguments = @(
+    "-NoProfile",
+    "-ExecutionPolicy", "Bypass",
+    "-File", "`"$scriptPath`"",
+    "-RepoPath", "`"$RepoPath`"",
+    "-MaxSendJitterMinutes", "$MaxSendJitterMinutes",
+    "-GitAuthorName", "`"$GitAuthorName`"",
+    "-GitAuthorEmail", "`"$GitAuthorEmail`""
+)
+if ($Network) {
+    $arguments += "-Network"
+}
+if ($NoSendJitter) {
+    $arguments += "-NoSendJitter"
+}
+if ($CreatePullRequest) {
+    $arguments += "-CreatePullRequest"
+}
+
+$sendJitterMinutes = $(if ($NoSendJitter) { 0 } else { [Math]::Max(0, $MaxSendJitterMinutes) })
+$sendActions = $(if ($CreatePullRequest) { 2 } else { 1 })
+$executionLimitMinutes = [Math]::Max(60, ($sendJitterMinutes * $sendActions) + $RuntimePaddingMinutes)
+
+$action = New-ScheduledTaskAction -Execute "powershell.exe" -Argument ($arguments -join " ")
+$trigger = New-ScheduledTaskTrigger -Daily -At $At
+$settings = New-ScheduledTaskSettingsSet `
+    -StartWhenAvailable `
+    -AllowStartIfOnBatteries `
+    -DontStopIfGoingOnBatteries `
+    -ExecutionTimeLimit (New-TimeSpan -Minutes $executionLimitMinutes)
+
+Register-ScheduledTask `
+    -TaskName $TaskName `
+    -Action $action `
+    -Trigger $trigger `
+    -Settings $settings `
+    -Description "Builds, tests, commits, and pushes a real AI-infrastructure/optics digest when content changes." `
+    -Force | Out-Null
+
+Write-Host "Installed scheduled task '$TaskName' at $At."
+Write-Host "Runner: $scriptPath"
+Write-Host "Send jitter: up to $sendJitterMinutes minute(s); execution limit: $executionLimitMinutes minute(s)."
+Write-Host "The task will refuse to create empty commits and will fail until gh auth + origin remote are configured."

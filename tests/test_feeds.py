@@ -1,0 +1,107 @@
+from pathlib import Path
+from datetime import date
+
+import pytest
+
+from optics_digest.feeds import (
+    NetworkDisabledError,
+    collect_items,
+    load_sources,
+    parse_feed_document,
+    select_sources_for_date,
+    source_rotation_period,
+)
+from optics_digest.models import FeedSource
+
+
+def test_load_sources_resolves_fixture_config_shape():
+    sources = load_sources("configs/feeds.yaml")
+
+    assert [source.name for source in sources] == ["Optics RSS Fixture", "Compute Atom Fixture"]
+
+
+def test_parse_rss_and_atom_fixture_items():
+    rss = Path("fixtures/feeds/optics_rss.xml").read_text(encoding="utf-8")
+    atom = Path("fixtures/feeds/compute_atom.xml").read_text(encoding="utf-8")
+
+    rss_items = parse_feed_document(rss, "rss fixture")
+    atom_items = parse_feed_document(atom, "atom fixture")
+
+    assert len(rss_items) == 3
+    assert len(atom_items) == 3
+    assert rss_items[0].published is not None
+    assert atom_items[0].raw_tags == ("silicon photonics",)
+
+
+def test_collect_items_is_fixture_only_by_default():
+    items = collect_items("configs/feeds.yaml")
+
+    assert len(items) == 6
+    assert items[0].title == "Co-packaged optics roadmap targets 1.6T links for AI clusters"
+    assert items[-1].title == "Optical switch fabric lowers tail latency in scale-out training networks"
+
+
+def test_http_sources_require_network_flag(tmp_path):
+    config = tmp_path / "feeds.yaml"
+    config.write_text(
+        "feeds:\n"
+        "  - name: Remote\n"
+        "    url: https://example.com/feed.xml\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(NetworkDisabledError):
+        collect_items(config)
+
+
+def test_read_source_type_is_explicit_for_static_checkers():
+    source = FeedSource(name="local", url="../fixtures/feeds/optics_rss.xml", required=False)
+
+    assert source.name == "local"
+    assert source.required is False
+
+
+def test_optional_source_failure_is_skipped(tmp_path):
+    config = tmp_path / "feeds.yaml"
+    fixture = Path.cwd() / "fixtures" / "feeds" / "optics_rss.xml"
+    config.write_text(
+        "feeds:\n"
+        "  - name: Broken Optional\n"
+        "    url: missing.xml\n"
+        "    required: false\n"
+        "  - name: Local Fixture\n"
+        f"    url: {fixture.as_posix()}\n",
+        encoding="utf-8",
+    )
+
+    items = collect_items(config)
+
+    assert len(items) == 3
+
+
+def test_source_rotation_selects_unbucketed_and_matching_bucket(tmp_path):
+    config = tmp_path / "feeds.yaml"
+    fixture = Path.cwd() / "fixtures" / "feeds" / "optics_rss.xml"
+    config.write_text(
+        "source_rotation:\n"
+        "  period_days: 3\n"
+        "feeds:\n"
+        "  - name: Always\n"
+        f"    url: {fixture.as_posix()}\n"
+        "  - name: Bucket Zero\n"
+        f"    url: {fixture.as_posix()}\n"
+        "    rotation_bucket: 0\n"
+        "  - name: Bucket One\n"
+        f"    url: {fixture.as_posix()}\n"
+        "    rotation_bucket: 1\n"
+        "  - name: Bucket Two\n"
+        f"    url: {fixture.as_posix()}\n"
+        "    rotation_bucket: 2\n",
+        encoding="utf-8",
+    )
+    sources = load_sources(config)
+    selected = select_sources_for_date(sources, run_date=date(2026, 8, 7), period_days=3)
+
+    assert source_rotation_period(config) == 3
+    assert {source.name for source in selected} == {"Always", "Bucket Two"}
+    assert len(selected) == 2

@@ -1,0 +1,82 @@
+source_rotation:
+  period_days: 4
+
+feeds:
+  - name: arXiv CS.AI
+    url: https://rss.arxiv.org/rss/cs.AI
+    category: ai_research
+  - name: arXiv CS.LG
+    url: https://rss.arxiv.org/rss/cs.LG
+    category: ai_research
+  - name: arXiv CS.DC
+    url: https://rss.arxiv.org/rss/cs.DC
+    category: ai_infrastructure
+  - name: arXiv CS.AR
+    url: https://rss.arxiv.org/rss/cs.AR
+    category: computer_architecture
+  - name: arXiv EESS.SP
+    url: https://rss.arxiv.org/rss/eess.SP
+    category: signal_processing
+  - name: arXiv Physics Optics
+    url: https://rss.arxiv.org/rss/physics.optics
+    category: photonics
+  - name: Hugging Face Blog
+    url: https://huggingface.co/blog/feed.xml
+    category: open_weight_models
+    rotation_bucket: 0
+    required: false
+  - name: Mistral News
+    url: https://mistral.ai/rss.xml
+    category: open_weight_models
+    rotation_bucket: 0
+    required: false
+  - name: Meta AI Blog
+    url: https://ai.meta.com/blog/rss/
+    category: open_weight_models
+    rotation_bucket: 1
+    required: false
+  - name: Qwen Blog
+    url: https://qwenlm.github.io/blog/feed.xml
+    category: open_weight_models
+    rotation_bucket: 1
+    required: false
+  - name: DeepSeek News
+    url: https://api.allorigins.win/raw?url=https://www.deepseek.com/news
+    category: open_weight_models
+    rotation_bucket: 2
+    required: false
+  - name: Google AI Blog
+    url: https://blog.google/technology/ai/rss/
+    category: ai_research
+    rotation_bucket: 2
+    required: false
+  - name: Microsoft Research AI
+    url: https://www.microsoft.com/en-us/research/feed/
+    category: ai_research
+    rotation_bucket: 3
+    required: false
+  - name: NVIDIA Developer Blog
+    url: https://developer.nvidia.com/blog/feed/
+    category: ai_infrastructure
+    rotation_bucket: 3
+    required: false
+  - name: ServeTheHome
+    url: https://www.servethehome.com/feed/
+    category: ai_infrastructure
+    rotation_bucket: 0
+    required: false
+  - name: Lightwave Online
+    url: https://www.lightwaveonline.com/rss.xml
+    category: optical_networking
+    rotation_bucket: 1
+    required: false
+  - name: Semiconductor Engineering
+    url: https://semiengineering.com/feed/
+    category: semiconductors_packaging
+    rotation_bucket: 2
+    required: false
+  - name: Data Center Dynamics
+    url: https://www.datacenterdynamics.com/en/rss/
+    category: data_center_energy
+    rotation_bucket: 3
+    required: false

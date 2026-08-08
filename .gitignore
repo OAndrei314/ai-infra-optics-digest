@@ -1,7 +1,8 @@
 __pycache__/
 *.pyc
 .pytest_cache/
-digests/
+digests/*-smoke/
+logs/
 *.egg-info/
 .venv/
 venv/

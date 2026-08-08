@@ -1,0 +1,30 @@
+{
+  "run_date": "2026-08-07",
+  "selected_repo": "ai-factory-optical-twin",
+  "selected_repo_path": "C:\\Users\\ojoca\\Documents\\github_projects\\ai-factory-optical-twin",
+  "report_path": "routine-reports\\2026-08-07.md",
+  "note_path": "C:\\Users\\ojoca\\Documents\\github_projects\\ai-factory-optical-twin\\research-notes\\2026-08-07.md",
+  "sources_checked": [
+    "arXiv CS.AI",
+    "arXiv CS.LG",
+    "arXiv CS.DC",
+    "arXiv CS.AR",
+    "arXiv EESS.SP",
+    "arXiv Physics Optics",
+    "Microsoft Research AI",
+    "NVIDIA Developer Blog",
+    "Data Center Dynamics"
+  ],
+  "skipped_repos": [
+    "local-inference-bench",
+    "mcp-telemetry-server",
+    "open-weight-eval-arena",
+    "optical-fault-localization-ml",
+    "rl-hardware-calibration-lab",
+    "thermal-acoustic-optimizer"
+  ],
+  "extraordinary_items": [
+    "Empyrion tops out upcoming Malaysian data center in Johor"
+  ],
+  "action": "wrote_repo_research_note"
+}
