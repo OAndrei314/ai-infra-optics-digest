@@ -1,6 +1,6 @@
 # Daily GitHub Cadence
 
-This repo is the honest daily-push engine for the portfolio.
+This repo is the daily-push engine for the Codex-owned project set.
 
 The scheduler does not create empty commits. Each run:
 

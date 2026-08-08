@@ -1,4 +1,4 @@
-"""News-aware multi-repo routine for the Codex-owned portfolio slice.
+"""News-aware multi-repo routine for the Codex-owned project set.
 
 This module is deliberately conservative. It does not invent code changes. It reads live
 news/digest items, selects a randomized daily batch of Codex-owned repos, and writes
@@ -394,6 +394,10 @@ def run_news_routine(
             entries=entries,
         )
 
+    public_note_paths = tuple(
+        _public_repo_file_path(repo, path) for repo, path in zip(note_repos, note_paths)
+    )
+    public_weekly_rundown_path = _public_output_path(weekly_rundown_path)
     report_path.write_text(
         render_routine_report(
             run_date=run_date,
@@ -404,13 +408,13 @@ def run_news_routine(
             entries_by_repo=entries_by_repo,
             extraordinary=extraordinary,
             sources_checked=sources_checked,
-            note_paths=tuple(note_paths),
+            note_paths=public_note_paths,
             lifecycle=lifecycle,
             active_candidates=active_candidates,
             completed_repos=completed_repos,
             replacement_needed=replacement_needed,
             replacement_reason=replacement_reason,
-            weekly_rundown_path=weekly_rundown_path,
+            weekly_rundown_path=public_weekly_rundown_path,
         ),
         encoding="utf-8",
     )
@@ -439,8 +443,59 @@ def run_news_routine(
     if metadata_out:
         metadata_path = Path(metadata_out)
         metadata_path.parent.mkdir(parents=True, exist_ok=True)
-        metadata_path.write_text(json.dumps(asdict(result), indent=2), encoding="utf-8")
+        metadata_path.write_text(
+            json.dumps(
+                _public_routine_metadata(
+                    result=result,
+                    selected_repos=selected_repos,
+                    note_repos=tuple(note_repos),
+                    note_paths=tuple(note_paths),
+                    weekly_rundown_path=weekly_rundown_path,
+                ),
+                indent=2,
+            ),
+            encoding="utf-8",
+        )
     return result
+
+
+def _public_output_path(path: str | Path | None) -> str | None:
+    if path is None:
+        return None
+    path_obj = Path(path)
+    if path_obj.is_absolute() and len(path_obj.parts) >= 2:
+        return f"{path_obj.parts[-2]}/{path_obj.parts[-1]}"
+    return path_obj.as_posix()
+
+
+def _public_repo_file_path(repo: RepoCandidate, path: Path) -> str:
+    try:
+        relative = path.relative_to(Path(repo.path))
+    except ValueError:
+        fallback = _public_output_path(path)
+        return fallback or path.name
+    return f"{repo.name}/{relative.as_posix()}"
+
+
+def _public_routine_metadata(
+    result: RoutineRun,
+    selected_repos: tuple[RepoCandidate, ...],
+    note_repos: tuple[RepoCandidate, ...],
+    note_paths: tuple[Path, ...],
+    weekly_rundown_path: Path | None,
+) -> dict[str, object]:
+    data = asdict(result)
+    public_note_paths = tuple(
+        _public_repo_file_path(repo, path) for repo, path in zip(note_repos, note_paths)
+    )
+    data["selected_repo_path"] = result.selected_repo
+    data["selected_repo_paths"] = [repo.name for repo in selected_repos]
+    data["note_repo_paths"] = [repo.name for repo in note_repos]
+    data["note_path"] = public_note_paths[0] if public_note_paths else None
+    data["note_paths"] = list(public_note_paths)
+    data["report_path"] = _public_output_path(result.report_path)
+    data["weekly_rundown_path"] = _public_output_path(weekly_rundown_path)
+    return data
 
 
 def render_repo_note(
@@ -499,13 +554,13 @@ def render_routine_report(
     entries_by_repo: dict[str, list[DigestEntry]],
     extraordinary: tuple[str, ...],
     sources_checked: tuple[str, ...],
-    note_paths: tuple[Path, ...],
+    note_paths: tuple[str, ...],
     lifecycle: dict[str, ProjectLifecycle],
     active_candidates: tuple[RepoCandidate, ...],
     completed_repos: tuple[str, ...],
     replacement_needed: bool,
     replacement_reason: str,
-    weekly_rundown_path: Path | None,
+    weekly_rundown_path: str | None,
 ) -> str:
     selected_names = ", ".join(f"`{repo.name}`" for repo in selected_repos)
     note_path_text = ", ".join(f"`{path}`" for path in note_paths) if note_paths else "n/a"
@@ -653,7 +708,7 @@ def render_weekly_rundown_html(
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Codex Portfolio Weekly Rundown {run_date.isoformat()}</title>
+  <title>Codex Project Weekly Rundown {run_date.isoformat()}</title>
   <style>
     :root {{ --ink:#172026; --muted:#5d6b74; --line:#d8e1e7; --bg:#f6f8f4; --panel:#fff; --green:#18745f; --amber:#9a6700; --red:#b42318; }}
     * {{ box-sizing: border-box; }}
@@ -679,7 +734,7 @@ def render_weekly_rundown_html(
 </head>
 <body>
   <header>
-    <h1>Codex Portfolio Weekly Rundown</h1>
+    <h1>Codex Project Weekly Rundown</h1>
     <p>{week_start.isoformat()} to {week_end.isoformat()} · generated {run_date.isoformat()}</p>
   </header>
   <main>

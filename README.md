@@ -5,22 +5,9 @@ Maintained by: codex-daily-routine
 A small, dependency-light digest generator for AI infrastructure, data center optics,
 silicon photonics, semiconductors, optical networking, and energy-efficient compute.
 
-The project is designed for portfolio-style reproducibility: fixture RSS/Atom feeds run
+The project is designed for reproducibility: fixture RSS/Atom feeds run
 the complete pipeline with zero network access, while an explicit `--network` flag can read
 real HTTP(S) feeds for live digest generation.
-
-## Research + Money Thesis
-
-**Research question:** can a small reproducible pipeline track where AI-infrastructure
-research and capital are moving, then convert noisy public sources into useful engineering
-signals?
-
-**Money question:** this follows capex and bottleneck signals across accelerators,
-optical transceivers, co-packaged optics, semiconductors, data center power, cooling, and
-networking. The point is to read papers and market direction together.
-
-**Engineering evidence:** each digest item is tagged by infrastructure layer, summarized
-deterministically, dated, linked to its source, and reproducible from fixture feeds in CI.
 
 ## Why this exists
 
@@ -94,9 +81,9 @@ project batch, and writes dated `research-notes/YYYY-MM-DD.md` files only when
 source-linked news is relevant to those repos. It stages exact generated paths, picks a
 hot-news-biased random daily batch of 6 to 8 active projects, explains hotness scores with
 matched terms/source/recency, writes a weekly local HTML rundown under `weekly-rundowns/`,
-randomizes actual publish timing inside the 17:00-02:00 Europe/Berlin window, and refuses
-dirty working trees. A project leaves the active batch when `configs/project_lifecycle.yaml`
-or the repo itself says `Project lifecycle: complete`.
+keeps that rundown local, randomizes actual publish timing inside the 17:00-02:00
+Europe/Berlin window, and refuses dirty working trees. A project leaves the active batch
+when `configs/project_lifecycle.yaml` or the repo itself says `Project lifecycle: complete`.
 
 ## Feed config
 

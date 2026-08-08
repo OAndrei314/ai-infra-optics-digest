@@ -1,10 +1,14 @@
 param(
     [string]$TaskName = "OAndrei314 Daily AI Infra Optics Digest",
-    [string]$RepoPath = "C:\Users\ojoca\Documents\github_projects\ai-infra-optics-digest",
-    [string]$GhPath = "C:\Program Files\GitHub CLI\gh.exe"
+    [string]$RepoPath = "",
+    [string]$GhPath = "gh"
 )
 
 $ErrorActionPreference = "Continue"
+
+if (-not $RepoPath) {
+    $RepoPath = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot "..")).Path
+}
 
 function Status-Line {
     param(

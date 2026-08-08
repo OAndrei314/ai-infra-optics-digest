@@ -1,7 +1,7 @@
 param(
-    [string]$RepoPath = "C:\Users\ojoca\Documents\github_projects\ai-infra-optics-digest",
-    [string]$PythonPath = "C:\Users\ojoca\AppData\Local\Programs\Python\Python312\python.exe",
-    [string]$GhPath = "C:\Program Files\GitHub CLI\gh.exe",
+    [string]$RepoPath = "",
+    [string]$PythonPath = "python",
+    [string]$GhPath = "gh",
     [string]$Sources = "configs\live_feeds.yaml",
     [string]$LogPath = "logs\daily_digest_push.log",
     [int]$Limit = 24,
@@ -14,6 +14,10 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+
+if (-not $RepoPath) {
+    $RepoPath = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot "..")).Path
+}
 
 function Write-Log {
     param([string]$Message)

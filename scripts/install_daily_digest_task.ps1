@@ -1,6 +1,8 @@
 param(
     [string]$TaskName = "OAndrei314 Daily AI Infra Optics Digest",
-    [string]$RepoPath = "C:\Users\ojoca\Documents\github_projects\ai-infra-optics-digest",
+    [string]$RepoPath = "",
+    [string]$PythonPath = "python",
+    [string]$GhPath = "gh",
     [string]$At = "09:00",
     [int]$MaxSendJitterMinutes = 300,
     [int]$RuntimePaddingMinutes = 120,
@@ -14,6 +16,10 @@ param(
 
 $ErrorActionPreference = "Stop"
 
+if (-not $RepoPath) {
+    $RepoPath = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot "..")).Path
+}
+
 $scriptPath = Join-Path $RepoPath "scripts\run_daily_digest_push.ps1"
 if (-not (Test-Path -LiteralPath $scriptPath)) {
     throw "Missing scheduler runner: $scriptPath"
@@ -22,7 +28,7 @@ if (-not (Test-Path -LiteralPath $scriptPath)) {
 if (-not $SkipReadinessCheck) {
     Push-Location $RepoPath
     try {
-        & "C:\Program Files\GitHub CLI\gh.exe" auth status *> $null
+        & $GhPath auth status *> $null
         if ($LASTEXITCODE -ne 0) {
             throw "GitHub CLI is not authenticated. Run gh auth login before installing the task."
         }
@@ -46,6 +52,8 @@ $arguments = @(
     "-ExecutionPolicy", "Bypass",
     "-File", "`"$scriptPath`"",
     "-RepoPath", "`"$RepoPath`"",
+    "-PythonPath", "`"$PythonPath`"",
+    "-GhPath", "`"$GhPath`"",
     "-MaxSendJitterMinutes", "$MaxSendJitterMinutes",
     "-GitAuthorName", "`"$GitAuthorName`"",
     "-GitAuthorEmail", "`"$GitAuthorEmail`""

@@ -3,6 +3,7 @@ __pycache__/
 .pytest_cache/
 digests/*-smoke/
 logs/
+weekly-rundowns/
 *.egg-info/
 .venv/
 venv/

@@ -1,7 +1,9 @@
 param(
     [string]$TaskName = "OAndrei314 Codex Daily News Routine",
-    [string]$WorkspaceRoot = "C:\Users\ojoca\Documents\github_projects",
-    [string]$RepoPath = "C:\Users\ojoca\Documents\github_projects\ai-infra-optics-digest",
+    [string]$WorkspaceRoot = "",
+    [string]$RepoPath = "",
+    [string]$PythonPath = "python",
+    [string]$GhPath = "gh",
     [string]$Lifecycle = "configs\project_lifecycle.yaml",
     [string]$WeeklyRundownDir = "weekly-rundowns",
     [string]$At = "17:00",
@@ -18,6 +20,13 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+
+if (-not $RepoPath) {
+    $RepoPath = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot "..")).Path
+}
+if (-not $WorkspaceRoot) {
+    $WorkspaceRoot = Split-Path -Parent $RepoPath
+}
 
 function Get-PublishWindowMinutes {
     param([string]$Start, [string]$End)
@@ -39,7 +48,7 @@ if (-not (Test-Path -LiteralPath $scriptPath)) {
 
 Push-Location $RepoPath
 try {
-    & "C:\Program Files\GitHub CLI\gh.exe" auth status *> $null
+    & $GhPath auth status *> $null
     if ($LASTEXITCODE -ne 0) {
         throw "GitHub CLI is not authenticated."
     }
@@ -61,6 +70,8 @@ $arguments = @(
     "-File", "`"$scriptPath`"",
     "-WorkspaceRoot", "`"$WorkspaceRoot`"",
     "-RepoPath", "`"$RepoPath`"",
+    "-PythonPath", "`"$PythonPath`"",
+    "-GhPath", "`"$GhPath`"",
     "-Lifecycle", "`"$Lifecycle`"",
     "-WeeklyRundownDir", "`"$WeeklyRundownDir`"",
     "-MaxSendJitterMinutes", "$MaxSendJitterMinutes",

@@ -1,9 +1,13 @@
 param(
     [string]$TaskName = "OAndrei314 Codex Daily News Routine",
-    [string]$RepoPath = "C:\Users\ojoca\Documents\github_projects\ai-infra-optics-digest"
+    [string]$RepoPath = ""
 )
 
 $ErrorActionPreference = "Stop"
+
+if (-not $RepoPath) {
+    $RepoPath = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot "..")).Path
+}
 
 function Report {
     param([string]$Status, [string]$Label, [string]$Detail)

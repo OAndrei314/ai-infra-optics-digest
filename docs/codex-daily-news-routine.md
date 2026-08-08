@@ -2,7 +2,7 @@
 
 Maintained by: codex-daily-routine
 
-This is the generalized daily task for the Codex-owned portfolio slice.
+This is the generalized daily task for the Codex-owned project set.
 
 ## What It Does
 
@@ -15,8 +15,9 @@ This is the generalized daily task for the Codex-owned portfolio slice.
 7. Randomly selects 6 to 8 active Codex-owned projects, biased toward the hottest current
    AI/news signals, and writes dated research notes when source-linked material exists.
 8. Writes/updates a local weekly HTML rundown under `weekly-rundowns/YYYY-Www.html`.
-9. Stages exact generated paths, waits until a randomized target inside the 17:00-02:00
-   publish window, commits only if content changed, and pushes.
+9. Checks generated public content, stages exact publishable paths, waits until a
+   randomized target inside the 17:00-02:00 publish window, commits only if content
+   changed, and pushes.
 
 ## Ownership Rules
 
@@ -58,7 +59,8 @@ or delayed starts can still wait for the next valid publish window.
 
 If a scheduled run is interrupted after writing the dated metadata, the next run no longer
 gets stuck on "already completed." It attempts a recovery publish for the exact generated
-digest, routine report, metadata, and selected project research note paths.
+digest, routine report, metadata, and selected project research note paths. Weekly HTML
+rundowns remain local and are not staged for publishing.
 
 Scheduled commits use the account-scoped GitHub no-reply email by default so GitHub can
 attribute them to `OAndrei314` when they land on the repository default branch.
@@ -85,4 +87,5 @@ items before filling the rest randomly.
 
 Every routine run writes or refreshes the current ISO-week HTML file under
 `weekly-rundowns/YYYY-Www.html`. It summarizes lifecycle status, maturity score, selected
-projects, weekly commits and the hot AI signals used by the routine.
+projects, weekly commits and the hot AI signals used by the routine. The directory is
+ignored by git because the rundown is intended for local review.

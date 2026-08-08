@@ -1,8 +1,8 @@
 param(
-    [string]$WorkspaceRoot = "C:\Users\ojoca\Documents\github_projects",
-    [string]$RepoPath = "C:\Users\ojoca\Documents\github_projects\ai-infra-optics-digest",
-    [string]$PythonPath = "C:\Users\ojoca\AppData\Local\Programs\Python\Python312\python.exe",
-    [string]$GhPath = "C:\Program Files\GitHub CLI\gh.exe",
+    [string]$WorkspaceRoot = "",
+    [string]$RepoPath = "",
+    [string]$PythonPath = "python",
+    [string]$GhPath = "gh",
     [string]$Sources = "configs\live_feeds.yaml",
     [string]$Lifecycle = "configs\project_lifecycle.yaml",
     [string]$WeeklyRundownDir = "weekly-rundowns",
@@ -23,6 +23,13 @@ param(
 
 $ErrorActionPreference = "Stop"
 $script:SendJitterUsed = $false
+
+if (-not $RepoPath) {
+    $RepoPath = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot "..")).Path
+}
+if (-not $WorkspaceRoot) {
+    $WorkspaceRoot = Split-Path -Parent $RepoPath
+}
 
 function Append-Run-Log {
     param([string]$Path, [string]$Message)
@@ -242,6 +249,32 @@ function Assert-NoUnexpectedStagedChanges {
     }
 }
 
+function Assert-PublicContentSafe {
+    param(
+        [string]$Repo,
+        [string[]]$Paths
+    )
+    $existingPaths = @()
+    foreach ($path in $Paths) {
+        if (Test-Path -LiteralPath (Join-Path $Repo $path)) {
+            $existingPaths += (Normalize-GitPath $path)
+        }
+    }
+    if (-not $existingPaths) {
+        return
+    }
+
+    Push-Location $Repo
+    try {
+        & $PythonPath -m optics_digest.cli guard-public-content @existingPaths
+        if ($LASTEXITCODE -ne 0) {
+            throw "Public content guard rejected generated files in $Repo"
+        }
+    } finally {
+        Pop-Location
+    }
+}
+
 function Push-PendingRoutineCommit {
     param(
         [string]$Repo,
@@ -290,6 +323,7 @@ function Publish-GeneratedPaths {
         $pathStatus = @(git status --porcelain -- $existingPaths)
         if ($pathStatus) {
             Assert-NoUnexpectedStagedChanges -Repo $Repo -ExpectedPaths $existingPaths
+            Assert-PublicContentSafe -Repo $Repo -Paths $existingPaths
             git add -- $existingPaths
             git diff --cached --quiet -- $existingPaths
             if ($LASTEXITCODE -ne 0) {
@@ -309,7 +343,10 @@ function Publish-GeneratedPaths {
 }
 
 function Get-MetadataNoteTargets {
-    param([object]$Metadata)
+    param(
+        [object]$Metadata,
+        [string]$WorkspaceRoot
+    )
     $targets = @()
     $propertyNames = @($Metadata.PSObject.Properties.Name)
 
@@ -329,32 +366,80 @@ function Get-MetadataNoteTargets {
             } else {
                 $repoPath = Split-Path -Parent (Split-Path -Parent $notePath)
             }
+            $repoPath = Resolve-RoutineRepoPath -WorkspaceRoot $WorkspaceRoot -PathOrName $repoPath
+            $notePath = Resolve-RoutineFilePath -WorkspaceRoot $WorkspaceRoot -RepoPath $repoPath -PathOrName $notePath
             $targets += [pscustomobject]@{
                 RepoPath = $repoPath
                 NotePath = $notePath
             }
         }
     } elseif ($Metadata.note_path) {
+        $repoPath = Resolve-RoutineRepoPath -WorkspaceRoot $WorkspaceRoot -PathOrName ([string]$Metadata.selected_repo_path)
+        $notePath = Resolve-RoutineFilePath -WorkspaceRoot $WorkspaceRoot -RepoPath $repoPath -PathOrName ([string]$Metadata.note_path)
         $targets += [pscustomobject]@{
-            RepoPath = [string]$Metadata.selected_repo_path
-            NotePath = [string]$Metadata.note_path
+            RepoPath = $repoPath
+            NotePath = $notePath
         }
     }
 
     return @($targets)
 }
 
+function Resolve-RoutineRepoPath {
+    param(
+        [string]$WorkspaceRoot,
+        [string]$PathOrName
+    )
+    if (-not $PathOrName) {
+        return $null
+    }
+    if (Test-Path -LiteralPath $PathOrName) {
+        return (Resolve-Path -LiteralPath $PathOrName).Path
+    }
+    $workspacePath = Join-Path $WorkspaceRoot $PathOrName
+    if (Test-Path -LiteralPath $workspacePath) {
+        return (Resolve-Path -LiteralPath $workspacePath).Path
+    }
+    return $PathOrName
+}
+
+function Resolve-RoutineFilePath {
+    param(
+        [string]$WorkspaceRoot,
+        [string]$RepoPath,
+        [string]$PathOrName
+    )
+    if (-not $PathOrName) {
+        return $null
+    }
+    if (Test-Path -LiteralPath $PathOrName) {
+        return (Resolve-Path -LiteralPath $PathOrName).Path
+    }
+    $workspacePath = Join-Path $WorkspaceRoot $PathOrName
+    if (Test-Path -LiteralPath $workspacePath) {
+        return (Resolve-Path -LiteralPath $workspacePath).Path
+    }
+    if ($RepoPath) {
+        $repoPathCandidate = Join-Path $RepoPath $PathOrName
+        if (Test-Path -LiteralPath $repoPathCandidate) {
+            return (Resolve-Path -LiteralPath $repoPathCandidate).Path
+        }
+    }
+    return $PathOrName
+}
+
 function Publish-ExistingRoutineRun {
     param(
         [object]$Metadata,
         [string]$RunDate,
+        [string]$WorkspaceRoot,
         [string]$RepoPath,
         [string]$LogPath
     )
     $published = $false
     $repoFull = (Resolve-Path -LiteralPath $RepoPath).Path
 
-    $noteTargets = @(Get-MetadataNoteTargets -Metadata $Metadata)
+    $noteTargets = @(Get-MetadataNoteTargets -Metadata $Metadata -WorkspaceRoot $WorkspaceRoot)
     foreach ($target in $noteTargets) {
         if (-not (Test-Path -LiteralPath $target.RepoPath) -or -not (Test-Path -LiteralPath $target.NotePath)) {
             continue
@@ -376,15 +461,6 @@ function Publish-ExistingRoutineRun {
         (Normalize-GitPath (Join-Path "routine-reports" "$RunDate.md")),
         (Normalize-GitPath (Join-Path "routine-reports" "$RunDate.json"))
     )
-    if (($Metadata.PSObject.Properties.Name -contains "weekly_rundown_path") -and $Metadata.weekly_rundown_path) {
-        $weeklyPath = [string]$Metadata.weekly_rundown_path
-        if (Test-Path -LiteralPath $weeklyPath) {
-            $weeklyFull = (Resolve-Path -LiteralPath $weeklyPath).Path
-            if ($weeklyFull.StartsWith($repoFull)) {
-                $stagePaths += (Relative-GitPath $RepoPath $weeklyPath)
-            }
-        }
-    }
     foreach ($target in $noteTargets) {
         if (-not (Test-Path -LiteralPath $target.NotePath)) {
             continue
@@ -409,6 +485,7 @@ function Publish-PendingRoutineRuns {
     param(
         [string]$RepoPath,
         [string]$LogPath,
+        [string]$WorkspaceRoot,
         [string]$CurrentRunDate
     )
     $published = $false
@@ -428,6 +505,7 @@ function Publish-PendingRoutineRuns {
         $didPublish = Publish-ExistingRoutineRun `
             -Metadata $metadata `
             -RunDate $metadataDate `
+            -WorkspaceRoot $WorkspaceRoot `
             -RepoPath $RepoPath `
             -LogPath $LogPath
         if ($didPublish) {
@@ -452,7 +530,7 @@ Append-Run-Log (Join-Path $RepoPath $LogPath) "starting Codex daily news routine
 try {
     $runDate = Get-Date -Format "yyyy-MM-dd"
     $fullLogPath = Join-Path $RepoPath $LogPath
-    Publish-PendingRoutineRuns -RepoPath $RepoPath -LogPath $fullLogPath -CurrentRunDate $runDate | Out-Null
+    Publish-PendingRoutineRuns -RepoPath $RepoPath -LogPath $fullLogPath -WorkspaceRoot $WorkspaceRoot -CurrentRunDate $runDate | Out-Null
 
     $existingMetadata = Join-Path $RepoPath (Join-Path "routine-reports" "$runDate.json")
     if ((Test-Path -LiteralPath $existingMetadata) -and (-not $Force)) {
@@ -460,6 +538,7 @@ try {
         $published = Publish-ExistingRoutineRun `
             -Metadata $metadata `
             -RunDate $runDate `
+            -WorkspaceRoot $WorkspaceRoot `
             -RepoPath $RepoPath `
             -LogPath $fullLogPath
         if ($published) {
@@ -540,7 +619,7 @@ try {
 
     $noteCommitCount = 0
     $repoFull = (Resolve-Path -LiteralPath $RepoPath).Path
-    $noteTargets = @(Get-MetadataNoteTargets -Metadata $metadata)
+    $noteTargets = @(Get-MetadataNoteTargets -Metadata $metadata -WorkspaceRoot $WorkspaceRoot)
     foreach ($target in $noteTargets) {
         if (-not (Test-Path -LiteralPath $target.RepoPath) -or -not (Test-Path -LiteralPath $target.NotePath)) {
             continue
@@ -564,15 +643,6 @@ try {
     Push-Location $RepoPath
     try {
         $stagePaths = @($digestPath, $reportPath, $metadataPath)
-        if (($metadata.PSObject.Properties.Name -contains "weekly_rundown_path") -and $metadata.weekly_rundown_path) {
-            $weeklyPath = [string]$metadata.weekly_rundown_path
-            if (Test-Path -LiteralPath $weeklyPath) {
-                $weeklyFull = (Resolve-Path -LiteralPath $weeklyPath).Path
-                if ($weeklyFull.StartsWith($repoFull)) {
-                    $stagePaths += (Relative-GitPath $RepoPath $weeklyPath)
-                }
-            }
-        }
         foreach ($target in $noteTargets) {
             if (-not (Test-Path -LiteralPath $target.NotePath)) {
                 continue
@@ -582,6 +652,7 @@ try {
                 $stagePaths += (Relative-GitPath $RepoPath $target.NotePath)
             }
         }
+        Assert-PublicContentSafe -Repo $RepoPath -Paths $stagePaths
         git add -- $stagePaths
         git diff --cached --quiet
         if ($LASTEXITCODE -ne 0) {

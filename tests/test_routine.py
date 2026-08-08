@@ -1,3 +1,4 @@
+import json
 import random
 from datetime import date
 from pathlib import Path
@@ -131,7 +132,10 @@ def test_run_news_routine_writes_randomized_multi_repo_notes(tmp_path):
     assert len(result.note_paths) == len(result.selected_repos)
     assert result.weekly_rundown_path is not None
     assert Path(result.weekly_rundown_path).exists()
-    assert "Codex Portfolio Weekly Rundown" in Path(result.weekly_rundown_path).read_text(encoding="utf-8")
+    assert "Codex Project Weekly Rundown" in Path(result.weekly_rundown_path).read_text(encoding="utf-8")
+    metadata = json.loads((tmp_path / "routine-reports" / "run.json").read_text(encoding="utf-8"))
+    assert str(tmp_path) not in json.dumps(metadata)
+    assert metadata["weekly_rundown_path"].startswith("weekly-rundowns/")
     for note_path in result.note_paths:
         assert "Daily Research Note" in Path(note_path).read_text(encoding="utf-8")
 

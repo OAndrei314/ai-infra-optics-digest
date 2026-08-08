@@ -6,6 +6,7 @@ import sys
 from datetime import date
 
 from .pipeline import generate_digest
+from .publication_guard import assert_public_paths_safe
 from .routine import run_news_routine
 
 
@@ -42,6 +43,9 @@ def main(argv: list[str] | None = None) -> int:
     routine_p.add_argument("--metadata-out", help="optional JSON metadata path")
     routine_p.add_argument("--write-note", action="store_true", help="write dated notes to the selected repos")
     routine_p.add_argument("--network", action="store_true", help="allow HTTP(S) news sources")
+
+    guard_p = sub.add_parser("guard-public-content", help="check generated public files before publishing")
+    guard_p.add_argument("paths", nargs="+", help="file paths to check")
 
     args = parser.parse_args(argv)
 
@@ -87,6 +91,15 @@ def main(argv: list[str] | None = None) -> int:
         print(f"report: {result.report_path}")
         for note_path in result.note_paths:
             print(f"note: {note_path}")
+        return 0
+
+    if args.command == "guard-public-content":
+        try:
+            assert_public_paths_safe(args.paths)
+        except ValueError as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 1
+        print("public content guard passed")
         return 0
 
     return 1
