@@ -10,8 +10,9 @@ import json
 import random
 import re
 import subprocess
+import html as html_lib
 from dataclasses import asdict, dataclass
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 
 import yaml
@@ -179,6 +180,12 @@ EXTRAORDINARY_TERMS = (
     "accelerator",
 )
 
+COMPLETE_STATUSES = {"complete", "completed", "done", "finished", "archived"}
+ACTIVE_STATUSES = {"active", "building", "in_progress", "incubating"}
+LIFECYCLE_RE = re.compile(
+    r"(?im)^\s*(?:project\s+)?(?:lifecycle|status)\s*:\s*(active|building|in_progress|incubating|complete|completed|done|finished|archived)\s*$"
+)
+
 
 @dataclass(frozen=True)
 class RepoCandidate:
@@ -188,6 +195,16 @@ class RepoCandidate:
     remote: str
     last_pushed_unix: int
     marker: str
+
+
+@dataclass(frozen=True)
+class ProjectLifecycle:
+    name: str
+    status: str
+    signal: str
+    reason: str
+    maturity_score: float
+    last_commit: str
 
 
 @dataclass(frozen=True)
@@ -202,6 +219,11 @@ class RoutineRun:
     note_repos: tuple[str, ...]
     note_repo_paths: tuple[str, ...]
     note_paths: tuple[str, ...]
+    active_repos: tuple[str, ...]
+    completed_repos: tuple[str, ...]
+    replacement_needed: bool
+    replacement_reason: str
+    weekly_rundown_path: str | None
     sources_checked: tuple[str, ...]
     skipped_repos: tuple[str, ...]
     extraordinary_items: tuple[str, ...]
@@ -245,8 +267,8 @@ def choose_repo(candidates: tuple[RepoCandidate, ...]) -> RepoCandidate:
 
 def choose_repos(
     candidates: tuple[RepoCandidate, ...],
-    min_count: int = 5,
-    max_count: int = 10,
+    min_count: int = 6,
+    max_count: int = 8,
     required_repo: str | None = "ai-infra-optics-digest",
     priority_repos: tuple[str, ...] = (),
     rng: random.Random | None = None,
@@ -304,16 +326,29 @@ def run_news_routine(
     limit: int = 16,
     write_note: bool = False,
     metadata_out: str | Path | None = None,
-    min_repo_count: int = 5,
-    max_repo_count: int = 10,
+    min_repo_count: int = 6,
+    max_repo_count: int = 8,
     selection_seed: str | None = None,
+    lifecycle_path: str | Path | None = None,
+    weekly_html_out: str | Path | None = None,
 ) -> RoutineRun:
     candidates, skipped = discover_repos(root)
+    lifecycle = assess_project_lifecycle(candidates, lifecycle_path=lifecycle_path)
+    active_candidates = tuple(repo for repo in candidates if lifecycle[repo.name].status not in COMPLETE_STATUSES)
+    completed_repos = tuple(repo.name for repo in candidates if lifecycle[repo.name].status in COMPLETE_STATUSES)
+    if not active_candidates:
+        raise ValueError("no active Codex-owned candidate repos found")
+    replacement_needed = len(active_candidates) < min_repo_count
+    replacement_reason = (
+        f"active Codex-owned repo count is {len(active_candidates)}, below target minimum {min_repo_count}; found a new project before the next full batch"
+        if replacement_needed
+        else ""
+    )
     entries, sources_checked = scan_news(sources_path, run_date, allow_network, limit)
-    priority_repos = _hot_priority_repos(candidates, entries)
+    priority_repos = _hot_priority_repos(active_candidates, entries)
     rng = random.Random(selection_seed) if selection_seed is not None else None
     selected_repos = choose_repos(
-        candidates,
+        active_candidates,
         min_count=min_repo_count,
         max_count=max_repo_count,
         required_repo="ai-infra-optics-digest",
@@ -347,6 +382,18 @@ def run_news_routine(
         if note_paths:
             action = "wrote_multi_repo_research_notes"
 
+    weekly_rundown_path = None
+    if weekly_html_out:
+        weekly_rundown_path = write_weekly_rundown(
+            root=root,
+            out_dir=weekly_html_out,
+            run_date=run_date,
+            candidates=candidates,
+            lifecycle=lifecycle,
+            selected_repos=selected_repos,
+            entries=entries,
+        )
+
     report_path.write_text(
         render_routine_report(
             run_date=run_date,
@@ -358,6 +405,12 @@ def run_news_routine(
             extraordinary=extraordinary,
             sources_checked=sources_checked,
             note_paths=tuple(note_paths),
+            lifecycle=lifecycle,
+            active_candidates=active_candidates,
+            completed_repos=completed_repos,
+            replacement_needed=replacement_needed,
+            replacement_reason=replacement_reason,
+            weekly_rundown_path=weekly_rundown_path,
         ),
         encoding="utf-8",
     )
@@ -373,6 +426,11 @@ def run_news_routine(
         note_repos=tuple(repo.name for repo in note_repos),
         note_repo_paths=tuple(repo.path for repo in note_repos),
         note_paths=tuple(str(path) for path in note_paths),
+        active_repos=tuple(repo.name for repo in active_candidates),
+        completed_repos=completed_repos,
+        replacement_needed=replacement_needed,
+        replacement_reason=replacement_reason,
+        weekly_rundown_path=str(weekly_rundown_path) if weekly_rundown_path else None,
         sources_checked=sources_checked,
         skipped_repos=skipped,
         extraordinary_items=extraordinary,
@@ -442,6 +500,12 @@ def render_routine_report(
     extraordinary: tuple[str, ...],
     sources_checked: tuple[str, ...],
     note_paths: tuple[Path, ...],
+    lifecycle: dict[str, ProjectLifecycle],
+    active_candidates: tuple[RepoCandidate, ...],
+    completed_repos: tuple[str, ...],
+    replacement_needed: bool,
+    replacement_reason: str,
+    weekly_rundown_path: Path | None,
 ) -> str:
     selected_names = ", ".join(f"`{repo.name}`" for repo in selected_repos)
     note_path_text = ", ".join(f"`{path}`" for path in note_paths) if note_paths else "n/a"
@@ -452,6 +516,10 @@ def render_routine_report(
         f"- Action: {'wrote research notes' if note_paths else 'news scan only'}",
         f"- Note paths: {note_path_text}",
         f"- Candidate repos: {len(candidates)}",
+        f"- Active repos: {len(active_candidates)}",
+        f"- Completed repos: {len(completed_repos)}",
+        f"- Replacement needed: {'yes' if replacement_needed else 'no'}",
+        f"- Weekly HTML rundown: `{weekly_rundown_path}`" if weekly_rundown_path else "- Weekly HTML rundown: n/a",
         f"- Skipped repos: {len(skipped)}",
         "",
         "## Sources Checked",
@@ -461,6 +529,22 @@ def render_routine_report(
     lines.extend(["", "## Repo Rotation", "", "| repo | branch | last pushed unix | marker |", "| --- | --- | ---: | --- |"])
     for repo in sorted(candidates, key=lambda item: (item.last_pushed_unix, item.name)):
         lines.append(f"| {repo.name} | {repo.branch} | {repo.last_pushed_unix} | {repo.marker} |")
+    lines.extend(
+        [
+            "",
+            "## Project Lifecycle",
+            "",
+            "| repo | status | maturity | signal | latest commit |",
+            "| --- | --- | ---: | --- | --- |",
+        ]
+    )
+    for repo in sorted(candidates, key=lambda item: item.name):
+        state = lifecycle[repo.name]
+        lines.append(
+            f"| {repo.name} | {state.status} | {state.maturity_score:.2f} | {state.signal} | {state.last_commit} |"
+        )
+    if replacement_needed:
+        lines.extend(["", "## Replacement Signal", "", replacement_reason])
     if skipped:
         lines.extend(["", "## Skipped Repos", ""])
         lines.extend(f"- {name}" for name in skipped)
@@ -486,6 +570,146 @@ def render_routine_report(
     return "\n".join(lines) + "\n"
 
 
+def assess_project_lifecycle(
+    candidates: tuple[RepoCandidate, ...],
+    lifecycle_path: str | Path | None = None,
+) -> dict[str, ProjectLifecycle]:
+    configured = _load_lifecycle_config(lifecycle_path)
+    states: dict[str, ProjectLifecycle] = {}
+    for repo in candidates:
+        repo_path = Path(repo.path)
+        readme = _read_readme(repo_path)
+        status_file = repo_path / "PROJECT_STATUS.md"
+        status_text = status_file.read_text(encoding="utf-8", errors="replace") if status_file.exists() else ""
+        config_entry = configured.get(repo.name, {})
+        status = str(config_entry.get("status") or _lifecycle_status_from_text(status_text) or _lifecycle_status_from_text(readme) or "active").lower()
+        if status not in COMPLETE_STATUSES and status not in ACTIVE_STATUSES:
+            status = "active"
+        signal = str(config_entry.get("signal") or _lifecycle_signal(status, status_file.exists()))
+        reason = str(config_entry.get("reason") or _lifecycle_reason(status, readme, status_text))
+        states[repo.name] = ProjectLifecycle(
+            name=repo.name,
+            status=status,
+            signal=signal,
+            reason=reason,
+            maturity_score=_maturity_score(repo_path, readme, status_file.exists(), status),
+            last_commit=_git(repo_path, "log", "-1", "--format=%h %s") or "unknown",
+        )
+    return states
+
+
+def write_weekly_rundown(
+    root: str | Path,
+    out_dir: str | Path,
+    run_date: date,
+    candidates: tuple[RepoCandidate, ...],
+    lifecycle: dict[str, ProjectLifecycle],
+    selected_repos: tuple[RepoCandidate, ...],
+    entries: list[DigestEntry],
+) -> Path:
+    out = Path(out_dir)
+    out.mkdir(parents=True, exist_ok=True)
+    iso = run_date.isocalendar()
+    path = out / f"{iso.year}-W{iso.week:02d}.html"
+    path.write_text(
+        render_weekly_rundown_html(
+            root=root,
+            run_date=run_date,
+            candidates=candidates,
+            lifecycle=lifecycle,
+            selected_repos=selected_repos,
+            entries=entries,
+        ),
+        encoding="utf-8",
+    )
+    return path.resolve()
+
+
+def render_weekly_rundown_html(
+    root: str | Path,
+    run_date: date,
+    candidates: tuple[RepoCandidate, ...],
+    lifecycle: dict[str, ProjectLifecycle],
+    selected_repos: tuple[RepoCandidate, ...],
+    entries: list[DigestEntry],
+) -> str:
+    del root
+    week_start = run_date - timedelta(days=run_date.weekday())
+    week_end = week_start + timedelta(days=6)
+    selected = {repo.name for repo in selected_repos}
+    active_count = sum(1 for repo in candidates if lifecycle[repo.name].status not in COMPLETE_STATUSES)
+    completed_count = len(candidates) - active_count
+    repo_rows = "\n".join(
+        _weekly_repo_row(repo, lifecycle[repo.name], week_start, repo.name in selected)
+        for repo in sorted(candidates, key=lambda item: item.name)
+    )
+    hot_rows = "\n".join(
+        f"<li><strong>{hotness_score(entry)}</strong> {html_lib.escape(entry.item.title)} <span>{html_lib.escape(entry.item.source)}</span></li>"
+        for entry in entries[:8]
+    )
+    selected_list = ", ".join(html_lib.escape(name) for name in sorted(selected)) or "none"
+    return f"""<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Codex Portfolio Weekly Rundown {run_date.isoformat()}</title>
+  <style>
+    :root {{ --ink:#172026; --muted:#5d6b74; --line:#d8e1e7; --bg:#f6f8f4; --panel:#fff; --green:#18745f; --amber:#9a6700; --red:#b42318; }}
+    * {{ box-sizing: border-box; }}
+    body {{ margin:0; font-family: Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif; color:var(--ink); background:var(--bg); }}
+    header {{ padding:32px clamp(18px,4vw,52px); background:var(--panel); border-bottom:1px solid var(--line); }}
+    main {{ padding:24px clamp(18px,4vw,52px) 42px; display:grid; gap:18px; }}
+    h1 {{ margin:0 0 8px; font-size:clamp(28px,4vw,46px); letter-spacing:0; }}
+    h2 {{ margin:0 0 12px; font-size:20px; }}
+    .stats {{ display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; }}
+    .stat, section {{ background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:16px; }}
+    .label {{ color:var(--muted); font-size:13px; text-transform:uppercase; }}
+    .value {{ font-size:28px; font-weight:760; margin-top:4px; }}
+    table {{ width:100%; border-collapse:collapse; font-size:14px; }}
+    th, td {{ padding:10px; border-bottom:1px solid var(--line); text-align:left; vertical-align:top; }}
+    th {{ color:var(--muted); }}
+    .active {{ color:var(--green); font-weight:700; }}
+    .complete {{ color:var(--red); font-weight:700; }}
+    .selected {{ background:#eef7f3; }}
+    li {{ margin:8px 0; }}
+    li span {{ color:var(--muted); }}
+    @media (max-width: 800px) {{ .stats {{ grid-template-columns:1fr 1fr; }} table {{ font-size:13px; }} }}
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Codex Portfolio Weekly Rundown</h1>
+    <p>{week_start.isoformat()} to {week_end.isoformat()} · generated {run_date.isoformat()}</p>
+  </header>
+  <main>
+    <div class="stats">
+      <div class="stat"><div class="label">Repos</div><div class="value">{len(candidates)}</div></div>
+      <div class="stat"><div class="label">Active</div><div class="value">{active_count}</div></div>
+      <div class="stat"><div class="label">Complete</div><div class="value">{completed_count}</div></div>
+      <div class="stat"><div class="label">Daily Batch</div><div class="value">{len(selected_repos)}</div></div>
+    </div>
+    <section>
+      <h2>Selected This Run</h2>
+      <p>{selected_list}</p>
+    </section>
+    <section>
+      <h2>Project Lifecycle And Weekly Build Log</h2>
+      <table>
+        <tr><th>Repo</th><th>Status</th><th>Maturity</th><th>This week</th><th>Latest commit</th><th>Signal</th></tr>
+        {repo_rows}
+      </table>
+    </section>
+    <section>
+      <h2>Hot AI Signals Used</h2>
+      <ul>{hot_rows}</ul>
+    </section>
+  </main>
+</body>
+</html>
+"""
+
+
 def _selected_source_names(sources_path: str | Path, run_date: date) -> tuple[str, ...]:
     sources_path = Path(sources_path)
     with sources_path.open(encoding="utf-8") as f:
@@ -502,6 +726,95 @@ def _selected_source_names(sources_path: str | Path, run_date: date) -> tuple[st
     ]
     selected = select_sources_for_date(sources, run_date, source_rotation_period(sources_path))
     return tuple(source.name for source in selected)
+
+
+def _load_lifecycle_config(lifecycle_path: str | Path | None) -> dict[str, dict[str, object]]:
+    if not lifecycle_path:
+        return {}
+    path = Path(lifecycle_path)
+    if not path.exists():
+        return {}
+    with path.open(encoding="utf-8") as f:
+        raw = yaml.safe_load(f) or {}
+    projects = raw.get("projects", {})
+    if not isinstance(projects, dict):
+        return {}
+    return {str(name): dict(value or {}) for name, value in projects.items()}
+
+
+def _lifecycle_status_from_text(text: str) -> str:
+    match = LIFECYCLE_RE.search(text)
+    return match.group(1).lower() if match else ""
+
+
+def _lifecycle_signal(status: str, has_status_file: bool) -> str:
+    if status in COMPLETE_STATUSES:
+        return "replace_with_new_project"
+    if has_status_file:
+        return "repo_status_file"
+    return "implicit_active"
+
+
+def _lifecycle_reason(status: str, readme: str, status_text: str) -> str:
+    if status in COMPLETE_STATUSES:
+        return "project is marked complete and should leave the active daily rotation"
+    text = f"{readme}\n{status_text}".lower()
+    if "next steps" in text:
+        return "active: README/status file still lists next steps"
+    if "status" in text:
+        return "active: status section present but no complete marker"
+    return "active by default; add 'Project lifecycle: complete' when finished"
+
+
+def _maturity_score(repo_path: Path, readme: str, has_status_file: bool, status: str) -> float:
+    if status in COMPLETE_STATUSES:
+        return 1.0
+    checks = (
+        bool(readme.strip()),
+        "quickstart" in readme.lower(),
+        "research + money" in readme.lower() or "research" in readme.lower(),
+        "status" in readme.lower(),
+        (repo_path / "tests").exists(),
+        (repo_path / ".github" / "workflows").exists(),
+        (repo_path / "pyproject.toml").exists(),
+        any(path.is_file() for path in repo_path.iterdir() if path.suffix == ".py") or any((repo_path / name).is_dir() for name in _package_dir_names(repo_path)),
+        (repo_path / "research-notes").exists(),
+        has_status_file,
+    )
+    return round(sum(1 for item in checks if item) / len(checks), 3)
+
+
+def _package_dir_names(repo_path: Path) -> tuple[str, ...]:
+    return tuple(
+        item.name
+        for item in repo_path.iterdir()
+        if item.is_dir() and (item / "__init__.py").exists() and not item.name.startswith(".")
+    )
+
+
+def _weekly_repo_row(repo: RepoCandidate, state: ProjectLifecycle, week_start: date, selected: bool) -> str:
+    commits = _weekly_commits(Path(repo.path), week_start)
+    commit_text = "<br>".join(html_lib.escape(item) for item in commits[:5]) if commits else "No commits yet this week"
+    status_class = "complete" if state.status in COMPLETE_STATUSES else "active"
+    row_class = " class=\"selected\"" if selected else ""
+    return (
+        f"<tr{row_class}>"
+        f"<td>{html_lib.escape(repo.name)}</td>"
+        f"<td class=\"{status_class}\">{html_lib.escape(state.status)}</td>"
+        f"<td>{state.maturity_score:.2f}</td>"
+        f"<td>{commit_text}</td>"
+        f"<td>{html_lib.escape(state.last_commit)}</td>"
+        f"<td>{html_lib.escape(state.signal)}</td>"
+        "</tr>"
+    )
+
+
+def _weekly_commits(repo_path: Path, week_start: date) -> tuple[str, ...]:
+    since = week_start.isoformat()
+    raw = _git(repo_path, "log", f"--since={since}", "--format=%h %s")
+    if not raw:
+        return ()
+    return tuple(line for line in raw.splitlines() if line.strip())
 
 
 def _should_skip_repo(name: str, marker: str) -> bool:

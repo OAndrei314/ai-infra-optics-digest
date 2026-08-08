@@ -12,9 +12,10 @@ This is the generalized daily task for the Codex-owned portfolio slice.
 4. Runs bare `pytest -v`.
 5. Builds the dated digest from `configs/live_feeds.yaml` with source rotation.
 6. Runs the repo/news routine and writes `routine-reports/YYYY-MM-DD.md`.
-7. Randomly selects 5 to 10 total Codex-owned projects, biased toward the hottest current
+7. Randomly selects 6 to 8 active Codex-owned projects, biased toward the hottest current
    AI/news signals, and writes dated research notes when source-linked material exists.
-8. Stages exact generated paths, waits until a randomized target inside the 17:00-02:00
+8. Writes/updates a local weekly HTML rundown under `weekly-rundowns/YYYY-Www.html`.
+9. Stages exact generated paths, waits until a randomized target inside the 17:00-02:00
    publish window, commits only if content changed, and pushes.
 
 ## Ownership Rules
@@ -27,6 +28,11 @@ seed list:
 - `tinyml-quantized-telemetry-bench`
 - `silicon-photonics-telemetry-monitor`
 - `firmware-validation-agent`
+- `physical-ai-data-factory-sim`
+- `open-model-supply-chain-radar`
+- `agentic-security-canary`
+- `long-context-cost-lab`
+- `ai-cluster-optics-capacity-planner`
 
 It skips repos marked `Maintained by: claude-daily-routine` and the hardcoded disjoint
 Claude-owned set from the handoff.
@@ -35,7 +41,7 @@ Claude-owned set from the handoff.
 
 ```powershell
 .\scripts\run_codex_daily_news_routine.ps1 -Network
-.\scripts\install_codex_daily_news_task.ps1 -Network -At "17:00" -PublishWindowStart "17:00" -PublishWindowEnd "02:00" -MinDailyProjects 5 -MaxDailyProjects 10
+.\scripts\install_codex_daily_news_task.ps1 -Network -At "17:00" -PublishWindowStart "17:00" -PublishWindowEnd "02:00" -MinDailyProjects 6 -MaxDailyProjects 8
 .\scripts\check_codex_daily_news_status.ps1
 ```
 
@@ -57,7 +63,26 @@ digest, routine report, metadata, and selected project research note paths.
 Scheduled commits use the account-scoped GitHub no-reply email by default so GitHub can
 attribute them to `OAndrei314` when they land on the repository default branch.
 
-Each daily run selects a random batch of Codex-owned projects, with `ai-infra-optics-digest`
-included as the coordination repo. The default batch size is minimum 5 and maximum 10 total
-projects, bounded by the number of available Codex-owned repos. The selector gives priority
-to repos whose topics match the hottest feed items before filling the rest randomly.
+## Project Lifecycle Signal
+
+The routine reads `configs/project_lifecycle.yaml` plus optional repo-local
+`PROJECT_STATUS.md`/README markers. A project is treated as finished when either source says:
+
+```text
+Project lifecycle: complete
+```
+
+Completed projects are excluded from the active daily batch and the routine emits a
+replacement signal if the active pool drops below the target minimum.
+
+Each daily run selects a random batch of active Codex-owned projects, with
+`ai-infra-optics-digest` included as the coordination repo when active. The default batch
+size is minimum 6 and maximum 8 total projects, bounded by the number of available active
+Codex-owned repos. The selector gives priority to repos whose topics match the hottest feed
+items before filling the rest randomly.
+
+## Weekly HTML Rundown
+
+Every routine run writes or refreshes the current ISO-week HTML file under
+`weekly-rundowns/YYYY-Www.html`. It summarizes lifecycle status, maturity score, selected
+projects, weekly commits and the hot AI signals used by the routine.

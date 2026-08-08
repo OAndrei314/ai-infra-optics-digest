@@ -35,8 +35,10 @@ def main(argv: list[str] | None = None) -> int:
     routine_p.add_argument("--out", default="routine-reports", help="routine report output directory")
     routine_p.add_argument("--date", help="routine date in YYYY-MM-DD form")
     routine_p.add_argument("--limit", type=int, default=16, help="maximum news items to inspect")
-    routine_p.add_argument("--min-repos", type=int, default=5, help="minimum daily project repos to touch")
-    routine_p.add_argument("--max-repos", type=int, default=10, help="maximum daily project repos to touch")
+    routine_p.add_argument("--min-repos", type=int, default=6, help="minimum daily active project repos to touch")
+    routine_p.add_argument("--max-repos", type=int, default=8, help="maximum daily active project repos to touch")
+    routine_p.add_argument("--lifecycle", default="configs/project_lifecycle.yaml", help="project lifecycle YAML config")
+    routine_p.add_argument("--weekly-html-out", default="weekly-rundowns", help="directory for weekly local HTML rundowns")
     routine_p.add_argument("--metadata-out", help="optional JSON metadata path")
     routine_p.add_argument("--write-note", action="store_true", help="write dated notes to the selected repos")
     routine_p.add_argument("--network", action="store_true", help="allow HTTP(S) news sources")
@@ -74,6 +76,8 @@ def main(argv: list[str] | None = None) -> int:
                 metadata_out=args.metadata_out,
                 min_repo_count=args.min_repos,
                 max_repo_count=args.max_repos,
+                lifecycle_path=args.lifecycle,
+                weekly_html_out=args.weekly_html_out,
             )
         except Exception as exc:
             print(f"error: {exc}", file=sys.stderr)

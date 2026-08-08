@@ -89,12 +89,15 @@ $publishWindowStart = $(if ($publishWindowStartArg) { $publishWindowStartArg } e
 $publishWindowEnd = $(if ($publishWindowEndArg) { $publishWindowEndArg } else { "02:00" })
 $minProjectsArg = Get-TaskArgumentValue -Arguments $actionArgs -Name "MinDailyProjects"
 $maxProjectsArg = Get-TaskArgumentValue -Arguments $actionArgs -Name "MaxDailyProjects"
-$minProjects = $(if ($minProjectsArg) { [int]$minProjectsArg } else { 5 })
-$maxProjects = $(if ($maxProjectsArg) { [int]$maxProjectsArg } else { 10 })
+$minProjects = $(if ($minProjectsArg) { [int]$minProjectsArg } else { 6 })
+$maxProjects = $(if ($maxProjectsArg) { [int]$maxProjectsArg } else { 8 })
+$weeklyRundownArg = Get-TaskArgumentValue -Arguments $actionArgs -Name "WeeklyRundownDir"
+$weeklyRundownDir = $(if ($weeklyRundownArg) { $weeklyRundownArg } else { "weekly-rundowns" })
 $limitMinutes = Convert-TaskDurationToMinutes $task.Settings.ExecutionTimeLimit
 $publishWindowMinutes = Get-PublishWindowMinutes -Start $publishWindowStart -End $publishWindowEnd
 $requiredMinutes = 1440 + $publishWindowMinutes + 120
-Report ($(if ($minProjects -ge 1 -and $maxProjects -ge $minProjects) { "ok" } else { "!!" })) "Daily project batch" "min=$minProjects, max=$maxProjects"
+Report ($(if ($minProjects -eq 6 -and $maxProjects -eq 8) { "ok" } else { "!!" })) "Daily project batch" "min=$minProjects, max=$maxProjects"
+Report ($(if ($weeklyRundownDir) { "ok" } else { "!!" })) "Weekly HTML rundown" "dir=$weeklyRundownDir"
 Report ($(if ($publishWindowStart -eq "17:00" -and $publishWindowEnd -eq "02:00") { "ok" } else { "!!" })) "Publish window" "window=$publishWindowStart-$publishWindowEnd, legacyJitterCap=${jitterMinutes}m"
 Report ($(if ($limitMinutes -ge $requiredMinutes) { "ok" } else { "!!" })) "Runtime budget" "window=${publishWindowMinutes}m, limit=${limitMinutes}m, required>=${requiredMinutes}m"
 Report ($(if ($info.LastTaskResult -eq 0) { "ok" } else { "!!" })) "Last run" "result=$($info.LastTaskResult), last=$($info.LastRunTime), next=$($info.NextRunTime)"

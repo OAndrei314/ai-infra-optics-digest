@@ -6,6 +6,7 @@ from optics_digest.routine import (
     CLAUDE_MARKER,
     CODEX_MARKER,
     RepoCandidate,
+    assess_project_lifecycle,
     choose_repo,
     choose_repos,
     discover_repos,
@@ -66,9 +67,9 @@ def test_choose_repos_honors_bounds_and_required_repo():
         )
     )
 
-    selected = choose_repos(candidates, min_count=5, max_count=10, rng=random.Random(7))
+    selected = choose_repos(candidates, min_count=6, max_count=8, rng=random.Random(7))
 
-    assert 5 <= len(selected) <= 10
+    assert 6 <= len(selected) <= 8
     assert "ai-infra-optics-digest" in {repo.name for repo in selected}
 
 
@@ -119,13 +120,67 @@ def test_run_news_routine_writes_randomized_multi_repo_notes(tmp_path):
         limit=6,
         write_note=True,
         metadata_out=tmp_path / "routine-reports" / "run.json",
-        min_repo_count=5,
-        max_repo_count=10,
+        min_repo_count=6,
+        max_repo_count=8,
         selection_seed="daily-test",
+        weekly_html_out=tmp_path / "weekly-rundowns",
     )
 
-    assert 5 <= len(result.selected_repos) <= 10
+    assert 6 <= len(result.selected_repos) <= 8
     assert "ai-infra-optics-digest" in result.selected_repos
     assert len(result.note_paths) == len(result.selected_repos)
+    assert result.weekly_rundown_path is not None
+    assert Path(result.weekly_rundown_path).exists()
+    assert "Codex Portfolio Weekly Rundown" in Path(result.weekly_rundown_path).read_text(encoding="utf-8")
     for note_path in result.note_paths:
         assert "Daily Research Note" in Path(note_path).read_text(encoding="utf-8")
+
+
+def test_lifecycle_complete_marker_excludes_repo_and_signals_replacement(tmp_path):
+    for name in (
+        "ai-infra-optics-digest",
+        "ai-factory-optical-twin",
+        "tinyml-quantized-telemetry-bench",
+        "silicon-photonics-telemetry-monitor",
+        "firmware-validation-agent",
+        "physical-ai-data-factory-sim",
+    ):
+        readme = f"# {name}\n\n{CODEX_MARKER}\n"
+        if name == "firmware-validation-agent":
+            readme += "\nProject lifecycle: complete\n"
+        _fake_repo(tmp_path, name, readme)
+
+    result = run_news_routine(
+        root=tmp_path,
+        sources_path="configs/feeds.yaml",
+        out_dir=tmp_path / "routine-reports",
+        run_date=date(2026, 8, 9),
+        allow_network=False,
+        limit=6,
+        write_note=True,
+        metadata_out=tmp_path / "routine-reports" / "run.json",
+        min_repo_count=6,
+        max_repo_count=8,
+        selection_seed="completion-test",
+        weekly_html_out=tmp_path / "weekly-rundowns",
+    )
+
+    assert "firmware-validation-agent" in result.completed_repos
+    assert "firmware-validation-agent" not in result.selected_repos
+    assert result.replacement_needed is True
+    assert "below target minimum" in result.replacement_reason
+
+
+def test_assess_project_lifecycle_reads_central_config(tmp_path):
+    repo_path = _fake_repo(tmp_path, "candidate", f"# candidate\n\n{CODEX_MARKER}\n")
+    config = tmp_path / "lifecycle.yaml"
+    config.write_text(
+        "projects:\n  candidate:\n    status: complete\n    signal: replace now\n",
+        encoding="utf-8",
+    )
+    candidate = RepoCandidate("candidate", str(repo_path), "main", "", 0, CODEX_MARKER)
+
+    lifecycle = assess_project_lifecycle((candidate,), lifecycle_path=config)
+
+    assert lifecycle["candidate"].status == "complete"
+    assert lifecycle["candidate"].signal == "replace now"

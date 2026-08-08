@@ -4,14 +4,16 @@ param(
     [string]$PythonPath = "C:\Users\ojoca\AppData\Local\Programs\Python\Python312\python.exe",
     [string]$GhPath = "C:\Program Files\GitHub CLI\gh.exe",
     [string]$Sources = "configs\live_feeds.yaml",
+    [string]$Lifecycle = "configs\project_lifecycle.yaml",
+    [string]$WeeklyRundownDir = "weekly-rundowns",
     [string]$LogPath = "logs\codex_daily_news_routine.log",
     [int]$DigestLimit = 24,
     [int]$RoutineLimit = 16,
     [int]$MaxSendJitterMinutes = 540,
     [string]$PublishWindowStart = "17:00",
     [string]$PublishWindowEnd = "02:00",
-    [int]$MinDailyProjects = 5,
-    [int]$MaxDailyProjects = 10,
+    [int]$MinDailyProjects = 6,
+    [int]$MaxDailyProjects = 8,
     [string]$GitAuthorName = "OAndrei314",
     [string]$GitAuthorEmail = "56999057+OAndrei314@users.noreply.github.com",
     [switch]$Network,
@@ -78,7 +80,12 @@ function Get-CodexRepoPaths {
         "ai-factory-optical-twin",
         "tinyml-quantized-telemetry-bench",
         "silicon-photonics-telemetry-monitor",
-        "firmware-validation-agent"
+        "firmware-validation-agent",
+        "physical-ai-data-factory-sim",
+        "open-model-supply-chain-radar",
+        "agentic-security-canary",
+        "long-context-cost-lab",
+        "ai-cluster-optics-capacity-planner"
     )
     $paths = @()
     foreach ($item in @(Get-ChildItem -LiteralPath $Root -Directory -ErrorAction SilentlyContinue | Sort-Object Name)) {
@@ -369,6 +376,15 @@ function Publish-ExistingRoutineRun {
         (Normalize-GitPath (Join-Path "routine-reports" "$RunDate.md")),
         (Normalize-GitPath (Join-Path "routine-reports" "$RunDate.json"))
     )
+    if (($Metadata.PSObject.Properties.Name -contains "weekly_rundown_path") -and $Metadata.weekly_rundown_path) {
+        $weeklyPath = [string]$Metadata.weekly_rundown_path
+        if (Test-Path -LiteralPath $weeklyPath) {
+            $weeklyFull = (Resolve-Path -LiteralPath $weeklyPath).Path
+            if ($weeklyFull.StartsWith($repoFull)) {
+                $stagePaths += (Relative-GitPath $RepoPath $weeklyPath)
+            }
+        }
+    }
     foreach ($target in $noteTargets) {
         if (-not (Test-Path -LiteralPath $target.NotePath)) {
             continue
@@ -501,6 +517,8 @@ try {
             "--limit", "$RoutineLimit",
             "--min-repos", "$MinDailyProjects",
             "--max-repos", "$MaxDailyProjects",
+            "--lifecycle", $Lifecycle,
+            "--weekly-html-out", $WeeklyRundownDir,
             "--metadata-out", $metadataPath,
             "--write-note"
         )
@@ -546,6 +564,15 @@ try {
     Push-Location $RepoPath
     try {
         $stagePaths = @($digestPath, $reportPath, $metadataPath)
+        if (($metadata.PSObject.Properties.Name -contains "weekly_rundown_path") -and $metadata.weekly_rundown_path) {
+            $weeklyPath = [string]$metadata.weekly_rundown_path
+            if (Test-Path -LiteralPath $weeklyPath) {
+                $weeklyFull = (Resolve-Path -LiteralPath $weeklyPath).Path
+                if ($weeklyFull.StartsWith($repoFull)) {
+                    $stagePaths += (Relative-GitPath $RepoPath $weeklyPath)
+                }
+            }
+        }
         foreach ($target in $noteTargets) {
             if (-not (Test-Path -LiteralPath $target.NotePath)) {
                 continue

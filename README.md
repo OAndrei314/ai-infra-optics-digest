@@ -89,12 +89,14 @@ The generalized routine extends the digest-only job:
 ```
 
 It rotates live sources day to day, writes `routine-reports/YYYY-MM-DD.md`, filters out
-repos marked `Maintained by: claude-daily-routine`, selects a random Codex-owned project
-batch, and writes dated `research-notes/YYYY-MM-DD.md` files only when source-linked news is
-relevant to those repos. It stages exact generated paths, picks a hot-news-biased random
-daily batch of 5 to 10 projects, explains hotness scores with matched terms/source/recency,
+repos marked `Maintained by: claude-daily-routine`, selects a random active Codex-owned
+project batch, and writes dated `research-notes/YYYY-MM-DD.md` files only when
+source-linked news is relevant to those repos. It stages exact generated paths, picks a
+hot-news-biased random daily batch of 6 to 8 active projects, explains hotness scores with
+matched terms/source/recency, writes a weekly local HTML rundown under `weekly-rundowns/`,
 randomizes actual publish timing inside the 17:00-02:00 Europe/Berlin window, and refuses
-dirty working trees.
+dirty working trees. A project leaves the active batch when `configs/project_lifecycle.yaml`
+or the repo itself says `Project lifecycle: complete`.
 
 ## Feed config
 
@@ -111,7 +113,8 @@ Relative paths are resolved from the config file location.
 ## Status
 
 MVP: fixture RSS/Atom parsing, deterministic layer tagging, extractive summarization,
-explainable hot-news scoring, and dated markdown digest output.
+explainable hot-news scoring, lifecycle-aware project rotation, weekly HTML rundown output,
+and dated markdown digest output.
 
 ## License
 

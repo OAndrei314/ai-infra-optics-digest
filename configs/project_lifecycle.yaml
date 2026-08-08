@@ -1,0 +1,39 @@
+active_target:
+  min: 6
+  max: 8
+
+completion_signal:
+  repo_marker: "Project lifecycle: complete"
+  replacement_action: "create a new Codex-owned project before the active pool drops below the target"
+
+projects:
+  ai-infra-optics-digest:
+    status: active
+    signal: "coordination repo; continue digest/routine improvements"
+  ai-factory-optical-twin:
+    status: active
+    signal: "continue optical twin scenario, economics and validation depth"
+  tinyml-quantized-telemetry-bench:
+    status: active
+    signal: "continue deployment-target and quantization benchmark depth"
+  silicon-photonics-telemetry-monitor:
+    status: active
+    signal: "continue telemetry drift, triage and validation fixtures"
+  firmware-validation-agent:
+    status: active
+    signal: "continue requirement coverage, simulator faults and release gates"
+  physical-ai-data-factory-sim:
+    status: active
+    signal: "continue physical-AI validation scenario coverage"
+  open-model-supply-chain-radar:
+    status: active
+    signal: "continue open-model deployment risk and supply-chain scoring"
+  agentic-security-canary:
+    status: active
+    signal: "continue agent tool-use policy and containment canaries"
+  long-context-cost-lab:
+    status: active
+    signal: "continue long-context memory and serving economics"
+  ai-cluster-optics-capacity-planner:
+    status: active
+    signal: "continue AI-cluster optical fabric tradeoff modeling"
