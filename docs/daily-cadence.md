@@ -31,7 +31,7 @@ Authenticate GitHub CLI first:
 Publish the repository once so it has an `origin` remote. Then install the daily task:
 
 ```powershell
-.\scripts\install_daily_digest_task.ps1 -Network -CreatePullRequest -At "09:00" -MaxSendJitterMinutes 45
+.\scripts\install_daily_digest_task.ps1 -Network -CreatePullRequest -At "09:00" -MaxSendJitterMinutes 300
 ```
 
 ## Run Once
@@ -40,8 +40,10 @@ Publish the repository once so it has an `origin` remote. Then install the daily
 .\scripts\run_daily_digest_push.ps1 -Network -CreatePullRequest -NoSendJitter
 ```
 
-Scheduled runs default to a random 1 to 2700 second delay before publishing. Use
-`-MaxSendJitterMinutes` to change that window, or `-NoSendJitter` for manual checks.
+Scheduled runs default to a random 1 to 18000 second delay before publishing. Use
+`-MaxSendJitterMinutes` to change that window, or `-NoSendJitter` for manual checks. The
+installed task allows up to 12 hours of runtime so commit/push and optional PR jitter can
+complete.
 
 ## Check Status
 

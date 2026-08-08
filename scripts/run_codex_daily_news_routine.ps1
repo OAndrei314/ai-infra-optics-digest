@@ -7,7 +7,7 @@ param(
     [string]$LogPath = "logs\codex_daily_news_routine.log",
     [int]$DigestLimit = 24,
     [int]$RoutineLimit = 16,
-    [int]$MaxSendJitterMinutes = 45,
+    [int]$MaxSendJitterMinutes = 300,
     [switch]$Network,
     [switch]$Force,
     [switch]$NoSendJitter

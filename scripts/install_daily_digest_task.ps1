@@ -2,7 +2,7 @@ param(
     [string]$TaskName = "OAndrei314 Daily AI Infra Optics Digest",
     [string]$RepoPath = "C:\Users\ojoca\Documents\github_projects\ai-infra-optics-digest",
     [string]$At = "09:00",
-    [int]$MaxSendJitterMinutes = 45,
+    [int]$MaxSendJitterMinutes = 300,
     [switch]$Network,
     [switch]$NoSendJitter,
     [switch]$CreatePullRequest,
@@ -61,7 +61,7 @@ $settings = New-ScheduledTaskSettingsSet `
     -StartWhenAvailable `
     -AllowStartIfOnBatteries `
     -DontStopIfGoingOnBatteries `
-    -ExecutionTimeLimit (New-TimeSpan -Hours 2)
+    -ExecutionTimeLimit (New-TimeSpan -Hours 12)
 
 Register-ScheduledTask `
     -TaskName $TaskName `

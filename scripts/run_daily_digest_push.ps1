@@ -5,7 +5,7 @@ param(
     [string]$Sources = "configs\live_feeds.yaml",
     [string]$LogPath = "logs\daily_digest_push.log",
     [int]$Limit = 24,
-    [int]$MaxSendJitterMinutes = 45,
+    [int]$MaxSendJitterMinutes = 300,
     [switch]$Network,
     [switch]$NoSendJitter,
     [switch]$CreatePullRequest

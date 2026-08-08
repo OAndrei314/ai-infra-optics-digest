@@ -35,7 +35,7 @@ Claude-owned set from the handoff.
 
 ```powershell
 .\scripts\run_codex_daily_news_routine.ps1 -Network
-.\scripts\install_codex_daily_news_task.ps1 -Network -At "09:00" -MaxSendJitterMinutes 45
+.\scripts\install_codex_daily_news_task.ps1 -Network -At "09:00" -MaxSendJitterMinutes 300
 .\scripts\check_codex_daily_news_status.ps1
 ```
 
@@ -43,7 +43,8 @@ The installed task name is `OAndrei314 Codex Daily News Routine`.
 
 ## Randomized Send Timing
 
-By default, the scheduler waits a random 1 to 2700 seconds before each commit/push action.
+By default, the scheduler waits a random 1 to 18000 seconds before each commit/push action.
 That keeps the daily publishing cadence from firing at the exact same second every day
 while still committing only real generated work. Use `-MaxSendJitterMinutes` to change the
-window, set it to `0`, or pass `-NoSendJitter` for manual verification runs.
+window, set it to `0`, or pass `-NoSendJitter` for manual verification runs. The installed
+task allows up to 12 hours of runtime so two randomized publish waits can complete.
