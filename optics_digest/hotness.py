@@ -44,24 +44,40 @@ HOT_TERMS: tuple[tuple[str, int], ...] = (
     ("power", 3),
 )
 
+SOURCE_BONUS = {
+    "hugging face blog",
+    "mistral news",
+    "meta ai blog",
+    "qwen blog",
+    "nvidia developer blog",
+    "nvidia newsroom",
+    "openai news",
+    "anthropic news",
+}
+
 
 def hotness_score(entry: DigestEntry, now: datetime | None = None) -> int:
     """Return a deterministic integer score for hot AI/infra relevance."""
-    text = " ".join((entry.item.title, entry.item.summary, entry.item.content, " ".join(entry.item.raw_tags))).lower()
-    score = sum(weight for term, weight in HOT_TERMS if term in text)
-    score += max(0, 5 - _age_days(entry, now))
-    if entry.item.source.lower() in {
-        "hugging face blog",
-        "mistral news",
-        "meta ai blog",
-        "qwen blog",
-        "nvidia developer blog",
-        "nvidia newsroom",
-        "openai news",
-        "anthropic news",
-    }:
-        score += 2
-    return score
+    return int(hotness_breakdown(entry, now=now)["total"])
+
+
+def matched_hot_terms(entry: DigestEntry) -> tuple[str, ...]:
+    text = _entry_text(entry)
+    return tuple(term for term, _weight in HOT_TERMS if term in text)
+
+
+def hotness_breakdown(entry: DigestEntry, now: datetime | None = None) -> dict[str, object]:
+    terms = matched_hot_terms(entry)
+    term_score = sum(weight for term, weight in HOT_TERMS if term in terms)
+    recency_score = max(0, 5 - _age_days(entry, now))
+    source_bonus = 2 if entry.item.source.lower() in SOURCE_BONUS else 0
+    return {
+        "total": term_score + recency_score + source_bonus,
+        "term_score": term_score,
+        "recency_score": recency_score,
+        "source_bonus": source_bonus,
+        "terms": terms,
+    }
 
 
 def sort_hot_entries(entries: list[DigestEntry], now: datetime | None = None) -> list[DigestEntry]:
@@ -82,3 +98,7 @@ def _age_days(entry: DigestEntry, now: datetime | None = None) -> int:
     current = now or datetime.now(timezone.utc)
     published = entry.item.published.astimezone(timezone.utc)
     return max(0, int((current - published).total_seconds() // 86_400))
+
+
+def _entry_text(entry: DigestEntry) -> str:
+    return " ".join((entry.item.title, entry.item.summary, entry.item.content, " ".join(entry.item.raw_tags))).lower()

@@ -92,8 +92,8 @@ It rotates live sources day to day, writes `routine-reports/YYYY-MM-DD.md`, filt
 repos marked `Maintained by: claude-daily-routine`, selects a random Codex-owned project
 batch, and writes dated `research-notes/YYYY-MM-DD.md` files only when source-linked news is
 relevant to those repos. It stages exact generated paths, picks a hot-news-biased random
-daily batch of 5 to 10 projects, randomizes send timing by up to 5 hours, and refuses
-dirty working trees.
+daily batch of 5 to 10 projects, explains hotness scores with matched terms/source/recency,
+randomizes send timing by up to 5 hours, and refuses dirty working trees.
 
 ## Feed config
 
@@ -109,8 +109,8 @@ Relative paths are resolved from the config file location.
 
 ## Status
 
-MVP: fixture RSS/Atom parsing, deterministic layer tagging, extractive summarization, and
-dated markdown digest output.
+MVP: fixture RSS/Atom parsing, deterministic layer tagging, extractive summarization,
+explainable hot-news scoring, and dated markdown digest output.
 
 ## License
 
