@@ -102,6 +102,6 @@ $publishWindowMinutes = Get-PublishWindowMinutes -Start $publishWindowStart -End
 $requiredMinutes = 1440 + $publishWindowMinutes + 120
 Report ($(if ($minProjects -eq 6 -and $maxProjects -eq 8) { "ok" } else { "!!" })) "Daily project batch" "min=$minProjects, max=$maxProjects"
 Report ($(if ($weeklyRundownDir) { "ok" } else { "!!" })) "Weekly HTML rundown" "dir=$weeklyRundownDir"
-Report ($(if ($publishWindowStart -eq "17:00" -and $publishWindowEnd -eq "02:00") { "ok" } else { "!!" })) "Publish window" "window=$publishWindowStart-$publishWindowEnd, legacyJitterCap=${jitterMinutes}m"
+Report ($(if ($publishWindowStart -eq "17:00" -and $publishWindowEnd -eq "02:00") { "ok" } else { "!!" })) "Per-repo publish timing" "window=$publishWindowStart-$publishWindowEnd, randomized-to-second=true, jitterEnabled=$($jitterMinutes -gt 0)"
 Report ($(if ($limitMinutes -ge $requiredMinutes) { "ok" } else { "!!" })) "Runtime budget" "window=${publishWindowMinutes}m, limit=${limitMinutes}m, required>=${requiredMinutes}m"
 Report ($(if ($info.LastTaskResult -eq 0) { "ok" } else { "!!" })) "Last run" "result=$($info.LastTaskResult), last=$($info.LastRunTime), next=$($info.NextRunTime)"

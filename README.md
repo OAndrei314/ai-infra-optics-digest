@@ -81,9 +81,10 @@ project batch, and writes dated `research-notes/YYYY-MM-DD.md` files only when
 source-linked news is relevant to those repos. It stages exact generated paths, picks a
 hot-news-biased random daily batch of 6 to 8 active projects, explains hotness scores with
 matched terms/source/recency, writes a weekly local HTML rundown under `weekly-rundowns/`,
-keeps that rundown local, randomizes actual publish timing inside the 17:00-02:00
-Europe/Berlin window, and refuses dirty working trees. A project leaves the active batch
-when `configs/project_lifecycle.yaml` or the repo itself says `Project lifecycle: complete`.
+keeps that rundown local, assigns each repo publish its own randomized second inside the
+17:00-02:00 Europe/Berlin window, and refuses dirty working trees. A project leaves the
+active batch when `configs/project_lifecycle.yaml` or the repo itself says
+`Project lifecycle: complete`.
 
 ## Feed config
 

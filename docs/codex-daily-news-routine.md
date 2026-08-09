@@ -15,9 +15,9 @@ This is the generalized daily task for the Codex-owned project set.
 7. Randomly selects 6 to 8 active Codex-owned projects, biased toward the hottest current
    AI/news signals, and writes dated research notes when source-linked material exists.
 8. Writes/updates a local weekly HTML rundown under `weekly-rundowns/YYYY-Www.html`.
-9. Checks generated public content, stages exact publishable paths, waits until a
-   randomized target inside the 17:00-02:00 publish window, commits only if content
-   changed, and pushes.
+9. Checks generated public content, stages exact publishable paths, assigns each repo
+   publish a randomized second inside the 17:00-02:00 publish window, commits only if
+   content changed, and pushes.
 
 ## Ownership Rules
 
@@ -50,17 +50,19 @@ The installed task name is `OAndrei314 Codex Daily News Routine`.
 
 ## Randomized Send Timing
 
-By default, the scheduler triggers at 17:00 Europe/Berlin and picks a random publish target
-inside the overnight 17:00-02:00 window. It never publishes at the old 09:00 trigger time,
-and it also avoids publishing exactly at 17:00 because the first possible randomized target
-is at least one second after the runner reaches the publish gate. Pass `-NoSendJitter` only
-for manual verification runs. The installer keeps a conservative runtime budget so missed
-or delayed starts can still wait for the next valid publish window.
+By default, the scheduler triggers at 17:00 Europe/Berlin and precomputes a sorted set of
+random per-repo publish targets inside the overnight 17:00-02:00 window, down to the
+second. It never publishes at the old 09:00 trigger time, and it also avoids publishing
+exactly at 17:00 because the first possible randomized target is at least one second after
+the runner reaches the publish gate. Pass `-NoSendJitter` only for manual verification
+runs. The installer keeps a conservative runtime budget so missed or delayed starts can
+still wait for the next valid publish window.
 
 If a scheduled run is interrupted after writing the dated metadata, the next run no longer
 gets stuck on "already completed." It attempts a recovery publish for the exact generated
 digest, routine report, metadata, and selected project research note paths. Weekly HTML
-rundowns remain local and are not staged for publishing.
+rundowns remain local and are not staged for publishing. Recovery publishes use the same
+per-repo randomized publish-target schedule.
 
 Scheduled commits use the account-scoped GitHub no-reply email by default so GitHub can
 attribute them to `OAndrei314` when they land on the repository default branch.

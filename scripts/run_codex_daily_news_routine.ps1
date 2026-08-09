@@ -22,7 +22,8 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
-$script:SendJitterUsed = $false
+$script:PublishTargets = @()
+$script:PublishTargetIndex = 0
 
 if (-not $RepoPath) {
     $RepoPath = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot "..")).Path
@@ -130,20 +131,22 @@ function Relative-GitPath {
     return ($relative -replace "\\", "/")
 }
 
-function Invoke-RandomSendJitter {
+function Initialize-RandomPublishSchedule {
     param(
+        [int]$Count,
         [string]$Reason,
         [string]$Path
     )
+    $script:PublishTargets = @()
+    $script:PublishTargetIndex = 0
+    if ($Count -le 0) {
+        return
+    }
     if ($NoSendJitter -or $MaxSendJitterMinutes -le 0) {
-        Append-Run-Log $Path "send jitter skipped for $Reason"
+        Append-Run-Log $Path "randomized per-repo publish schedule skipped for $Reason"
         return
     }
-    if ($script:SendJitterUsed) {
-        Append-Run-Log $Path "send jitter already applied; continuing with $Reason"
-        return
-    }
-    $script:SendJitterUsed = $true
+
     $window = Get-NextPublishWindow -Now (Get-Date) -Start (Convert-PublishWindowTime $PublishWindowStart) -End (Convert-PublishWindowTime $PublishWindowEnd)
     $now = Get-Date
     $earliestTarget = if ($now -lt $window.Start) { $window.Start } else { $now.AddSeconds(1) }
@@ -152,20 +155,55 @@ function Invoke-RandomSendJitter {
         $earliestTarget = $window.Start
     }
     $latestTarget = $window.End.AddSeconds(-1)
-    if ($earliestTarget -gt $latestTarget) {
-        $target = $earliestTarget
-    } else {
-        $rangeSeconds = [int][Math]::Floor(($latestTarget - $earliestTarget).TotalSeconds)
-        $offsetSeconds = Get-Random -Minimum 0 -Maximum ($rangeSeconds + 1)
-        $target = $earliestTarget.AddSeconds($offsetSeconds)
+    $rangeSeconds = [int][Math]::Floor(($latestTarget - $earliestTarget).TotalSeconds)
+    if ($rangeSeconds -lt 0) {
+        $script:PublishTargets = @($earliestTarget)
+        Append-Run-Log $Path "scheduled 1 randomized publish target for $Reason`: $($earliestTarget.ToString('yyyy-MM-dd HH:mm:ss'))"
+        return
     }
+
+    $offsets = New-Object "System.Collections.Generic.HashSet[int]"
+    $attempts = 0
+    while ($offsets.Count -lt $Count -and $attempts -lt ($Count * 20)) {
+        [void]$offsets.Add((Get-Random -Minimum 0 -Maximum ($rangeSeconds + 1)))
+        $attempts += 1
+    }
+    $fallbackOffset = 0
+    while ($offsets.Count -lt $Count) {
+        [void]$offsets.Add([Math]::Min($fallbackOffset, $rangeSeconds))
+        $fallbackOffset += 1
+    }
+
+    $script:PublishTargets = @($offsets | Sort-Object | ForEach-Object { $earliestTarget.AddSeconds($_) })
+    $targetSummary = ($script:PublishTargets | ForEach-Object { $_.ToString("yyyy-MM-dd HH:mm:ss") }) -join ", "
+    Append-Run-Log $Path "scheduled $($script:PublishTargets.Count) randomized per-repo publish target(s) for $Reason within $PublishWindowStart-$PublishWindowEnd`: $targetSummary"
+}
+
+function Invoke-RandomPublishWait {
+    param(
+        [string]$Reason,
+        [string]$Path
+    )
+    if ($NoSendJitter -or $MaxSendJitterMinutes -le 0) {
+        Append-Run-Log $Path "randomized publish wait skipped for $Reason"
+        return
+    }
+    if ($script:PublishTargetIndex -ge $script:PublishTargets.Count) {
+        Initialize-RandomPublishSchedule -Count 1 -Reason $Reason -Path $Path
+    }
+
+    $targetNumber = $script:PublishTargetIndex + 1
+    $targetTotal = [Math]::Max($script:PublishTargets.Count, $targetNumber)
+    $target = $script:PublishTargets[$script:PublishTargetIndex]
+    $script:PublishTargetIndex += 1
+    $now = Get-Date
     $seconds = [int][Math]::Ceiling(($target - $now).TotalSeconds)
     if ($seconds -lt 1) {
         $seconds = 1
         $target = $now.AddSeconds(1)
     }
-    Append-Run-Log $Path "waiting $seconds second(s) until $($target.ToString('yyyy-MM-dd HH:mm:ss')) before $Reason; publish window $PublishWindowStart-$PublishWindowEnd"
-    Write-Host "Randomized publish window: waiting $seconds second(s), target $($target.ToString('yyyy-MM-dd HH:mm:ss')), before $Reason."
+    Append-Run-Log $Path "waiting $seconds second(s) until $($target.ToString('yyyy-MM-dd HH:mm:ss')) before $Reason; randomized publish target $targetNumber/$targetTotal; publish window $PublishWindowStart-$PublishWindowEnd"
+    Write-Host "Randomized publish target $targetNumber/$targetTotal`: waiting $seconds second(s), target $($target.ToString('yyyy-MM-dd HH:mm:ss')), before $Reason."
     Start-Sleep -Seconds $seconds
 }
 
@@ -279,7 +317,9 @@ function Push-PendingRoutineCommit {
     param(
         [string]$Repo,
         [string]$ExpectedSubject,
-        [string]$Path
+        [string]$Path,
+        [string]$Reason,
+        [switch]$UseJitter
     )
     Push-Location $Repo
     try {
@@ -290,6 +330,9 @@ function Push-PendingRoutineCommit {
         $subjects = @(git log --format=%s "$upstream..HEAD" 2>$null)
         if ($subjects -contains $ExpectedSubject) {
             Append-Run-Log $Path "pushing pending routine commit in $Repo"
+            if ($UseJitter) {
+                Invoke-RandomPublishWait -Reason $Reason -Path $Path
+            }
             git push origin HEAD
             return $true
         }
@@ -328,7 +371,7 @@ function Publish-GeneratedPaths {
             git diff --cached --quiet -- $existingPaths
             if ($LASTEXITCODE -ne 0) {
                 if ($UseJitter) {
-                    Invoke-RandomSendJitter -Reason $Reason -Path $LogPath
+                    Invoke-RandomPublishWait -Reason $Reason -Path $LogPath
                 }
                 git commit -m $CommitMessage
                 git push origin HEAD
@@ -339,7 +382,26 @@ function Publish-GeneratedPaths {
         Pop-Location
     }
 
-    return (Push-PendingRoutineCommit -Repo $Repo -ExpectedSubject $CommitMessage -Path $LogPath)
+    return (Push-PendingRoutineCommit -Repo $Repo -ExpectedSubject $CommitMessage -Path $LogPath -Reason $Reason -UseJitter:$UseJitter)
+}
+
+function Get-RoutinePublishUnitCount {
+    param(
+        [object[]]$NoteTargets,
+        [string]$RepoPath
+    )
+    $count = 1
+    $repoFull = (Resolve-Path -LiteralPath $RepoPath).Path
+    foreach ($target in $NoteTargets) {
+        if (-not (Test-Path -LiteralPath $target.RepoPath) -or -not (Test-Path -LiteralPath $target.NotePath)) {
+            continue
+        }
+        $selectedFull = (Resolve-Path -LiteralPath $target.RepoPath).Path
+        if ($selectedFull -ne $repoFull) {
+            $count += 1
+        }
+    }
+    return $count
 }
 
 function Get-MetadataNoteTargets {
@@ -440,6 +502,10 @@ function Publish-ExistingRoutineRun {
     $repoFull = (Resolve-Path -LiteralPath $RepoPath).Path
 
     $noteTargets = @(Get-MetadataNoteTargets -Metadata $Metadata -WorkspaceRoot $WorkspaceRoot)
+    Initialize-RandomPublishSchedule `
+        -Count (Get-RoutinePublishUnitCount -NoteTargets $noteTargets -RepoPath $RepoPath) `
+        -Reason "recovered routine publish $RunDate" `
+        -Path $LogPath
     foreach ($target in $noteTargets) {
         if (-not (Test-Path -LiteralPath $target.RepoPath) -or -not (Test-Path -LiteralPath $target.NotePath)) {
             continue
@@ -452,7 +518,8 @@ function Publish-ExistingRoutineRun {
                 -Paths @($relativeNote) `
                 -CommitMessage "Add daily news research note $RunDate" `
                 -Reason "recovered selected repo commit/push" `
-                -LogPath $LogPath) -or $published
+                -LogPath $LogPath `
+                -UseJitter) -or $published
         }
     }
 
@@ -476,7 +543,8 @@ function Publish-ExistingRoutineRun {
         -Paths $stagePaths `
         -CommitMessage "Run Codex daily news routine $RunDate" `
         -Reason "recovered digest routine commit/push" `
-        -LogPath $LogPath) -or $published
+        -LogPath $LogPath `
+        -UseJitter) -or $published
 
     return $published
 }
@@ -620,6 +688,10 @@ try {
     $noteCommitCount = 0
     $repoFull = (Resolve-Path -LiteralPath $RepoPath).Path
     $noteTargets = @(Get-MetadataNoteTargets -Metadata $metadata -WorkspaceRoot $WorkspaceRoot)
+    Initialize-RandomPublishSchedule `
+        -Count (Get-RoutinePublishUnitCount -NoteTargets $noteTargets -RepoPath $RepoPath) `
+        -Reason "daily routine publish $($metadata.run_date)" `
+        -Path $fullLogPath
     foreach ($target in $noteTargets) {
         if (-not (Test-Path -LiteralPath $target.RepoPath) -or -not (Test-Path -LiteralPath $target.NotePath)) {
             continue
@@ -656,7 +728,7 @@ try {
         git add -- $stagePaths
         git diff --cached --quiet
         if ($LASTEXITCODE -ne 0) {
-            Invoke-RandomSendJitter -Reason "digest routine commit/push" -Path $fullLogPath
+            Invoke-RandomPublishWait -Reason "digest routine commit/push" -Path $fullLogPath
             git commit -m "Run Codex daily news routine $runDate"
             git push origin HEAD
         }
