@@ -1,0 +1,95 @@
+{
+  "run_date": "2026-08-11",
+  "selected_repo": "ai-infra-optics-digest",
+  "selected_repo_path": "ai-infra-optics-digest",
+  "report_path": "routine-reports/2026-08-11.md",
+  "note_path": "agentic-security-canary/research-notes/2026-08-11.md",
+  "selected_repos": [
+    "agentic-security-canary",
+    "ai-cluster-optics-capacity-planner",
+    "ai-factory-optical-twin",
+    "ai-infra-optics-digest",
+    "firmware-validation-agent",
+    "long-context-cost-lab",
+    "open-model-supply-chain-radar"
+  ],
+  "selected_repo_paths": [
+    "agentic-security-canary",
+    "ai-cluster-optics-capacity-planner",
+    "ai-factory-optical-twin",
+    "ai-infra-optics-digest",
+    "firmware-validation-agent",
+    "long-context-cost-lab",
+    "open-model-supply-chain-radar"
+  ],
+  "note_repos": [
+    "agentic-security-canary",
+    "ai-cluster-optics-capacity-planner",
+    "ai-factory-optical-twin",
+    "ai-infra-optics-digest",
+    "firmware-validation-agent",
+    "long-context-cost-lab",
+    "open-model-supply-chain-radar"
+  ],
+  "note_repo_paths": [
+    "agentic-security-canary",
+    "ai-cluster-optics-capacity-planner",
+    "ai-factory-optical-twin",
+    "ai-infra-optics-digest",
+    "firmware-validation-agent",
+    "long-context-cost-lab",
+    "open-model-supply-chain-radar"
+  ],
+  "note_paths": [
+    "agentic-security-canary/research-notes/2026-08-11.md",
+    "ai-cluster-optics-capacity-planner/research-notes/2026-08-11.md",
+    "ai-factory-optical-twin/research-notes/2026-08-11.md",
+    "ai-infra-optics-digest/research-notes/2026-08-11.md",
+    "firmware-validation-agent/research-notes/2026-08-11.md",
+    "long-context-cost-lab/research-notes/2026-08-11.md",
+    "open-model-supply-chain-radar/research-notes/2026-08-11.md"
+  ],
+  "active_repos": [
+    "agentic-security-canary",
+    "ai-cluster-optics-capacity-planner",
+    "ai-factory-optical-twin",
+    "ai-infra-optics-digest",
+    "firmware-validation-agent",
+    "long-context-cost-lab",
+    "open-model-supply-chain-radar",
+    "physical-ai-data-factory-sim",
+    "silicon-photonics-telemetry-monitor",
+    "tinyml-quantized-telemetry-bench"
+  ],
+  "completed_repos": [],
+  "replacement_needed": false,
+  "replacement_reason": "",
+  "weekly_rundown_path": "weekly-rundowns/2026-W33.html",
+  "sources_checked": [
+    "arXiv CS.AI",
+    "arXiv CS.LG",
+    "arXiv CS.DC",
+    "arXiv CS.AR",
+    "arXiv EESS.SP",
+    "arXiv Physics Optics",
+    "Microsoft Research AI",
+    "NVIDIA Developer Blog",
+    "vLLM Blog",
+    "Data Center Dynamics"
+  ],
+  "skipped_repos": [
+    "daily-portfolio-automation",
+    "local-inference-bench",
+    "mcp-telemetry-server",
+    "open-weight-eval-arena",
+    "optical-fault-localization-ml",
+    "rl-hardware-calibration-lab",
+    "thermal-acoustic-optimizer"
+  ],
+  "extraordinary_items": [
+    "Azur Datacenter to convert HRS hydrogen facility in Champagnier, France, into data center",
+    "Magnora to launch 1MW data center in Oslo, Norway",
+    "Chemours launches two refrigerants for data center chillers"
+  ],
+  "action": "wrote_multi_repo_research_notes"
+}
