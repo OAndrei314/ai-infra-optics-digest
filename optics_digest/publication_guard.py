@@ -22,7 +22,14 @@ PRIVATE_POSITIONING_PATTERNS = (
     ("private interview positioning", re.compile(r"silicon\s+valley\s+interview\s+hook", re.IGNORECASE)),
     ("internal market prompt", re.compile(r"\bmoney\s+question\b", re.IGNORECASE)),
     ("internal market prompt", re.compile(r"\bfollow\s+the\s+money\b", re.IGNORECASE)),
-    ("compensation positioning", re.compile(r"\b500\s*k\b|\bsal(?:ary)\b", re.IGNORECASE)),
+    (
+        "compensation positioning",
+        re.compile(
+            r"\bsalary\b|\$\s*500\s*k\b|"
+            r"\b(?:compensation|pay|offer|earning)\b[^\n.!?]{0,40}\b500\s*k\b",
+            re.IGNORECASE,
+        ),
+    ),
     ("private-note marker", re.compile(r"\bprivate\s+notes?\b|\bmy\s+notes?\b", re.IGNORECASE)),
     ("do-not-publish marker", re.compile(r"shouldn[^\w]?t\s+be\s+read|do\s+not\s+publish", re.IGNORECASE)),
 )

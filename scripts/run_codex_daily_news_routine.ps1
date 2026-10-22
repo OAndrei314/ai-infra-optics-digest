@@ -38,6 +38,13 @@ function Append-Run-Log {
     "[$timestamp] $Message" | Out-File -FilePath $Path -Append -Encoding utf8
 }
 
+function Assert-NativeSuccess {
+    param([string]$Operation)
+    if ($LASTEXITCODE -ne 0) {
+        throw "$Operation failed with exit code $LASTEXITCODE"
+    }
+}
+
 function Assert-Clean-GitRepo {
     param([string]$Path)
     Push-Location $Path
@@ -334,6 +341,7 @@ function Push-PendingRoutineCommit {
                 Invoke-RandomPublishWait -Reason $Reason -Path $Path
             }
             git push origin HEAD
+            Assert-NativeSuccess "Push pending routine commit"
             return $true
         }
         return $false
@@ -368,13 +376,16 @@ function Publish-GeneratedPaths {
             Assert-NoUnexpectedStagedChanges -Repo $Repo -ExpectedPaths $existingPaths
             Assert-PublicContentSafe -Repo $Repo -Paths $existingPaths
             git add -- $existingPaths
+            Assert-NativeSuccess "Stage generated paths"
             git diff --cached --quiet -- $existingPaths
             if ($LASTEXITCODE -ne 0) {
                 if ($UseJitter) {
                     Invoke-RandomPublishWait -Reason $Reason -Path $LogPath
                 }
                 git commit -m $CommitMessage
+                Assert-NativeSuccess "Commit generated paths"
                 git push origin HEAD
+                Assert-NativeSuccess "Push generated paths"
                 return $true
             }
         }
@@ -637,10 +648,14 @@ try {
             throw "No git remote named origin."
         }
         git pull --ff-only
+        Assert-NativeSuccess "Update routine repository"
 
         & $PythonPath -m pip install -r requirements-dev.txt
+        Assert-NativeSuccess "Install test dependencies"
         & $PythonPath -m pip install -e .
+        Assert-NativeSuccess "Install routine package"
         & $PythonPath -m pytest -v
+        Assert-NativeSuccess "Run routine tests"
 
         $digestPath = Join-Path "digests" "$runDate.md"
         $routineDir = "routine-reports"
@@ -675,7 +690,9 @@ try {
         }
 
         & $PythonPath @buildArgs
+        Assert-NativeSuccess "Build digest"
         & $PythonPath @routineArgs
+        Assert-NativeSuccess "Generate routine"
 
         if (-not (Test-Path -LiteralPath $metadataPath)) {
             throw "Routine metadata was not created: $metadataPath"
@@ -726,11 +743,14 @@ try {
         }
         Assert-PublicContentSafe -Repo $RepoPath -Paths $stagePaths
         git add -- $stagePaths
+        Assert-NativeSuccess "Stage routine report"
         git diff --cached --quiet
         if ($LASTEXITCODE -ne 0) {
             Invoke-RandomPublishWait -Reason "digest routine commit/push" -Path $fullLogPath
             git commit -m "Run Codex daily news routine $runDate"
+            Assert-NativeSuccess "Commit routine report"
             git push origin HEAD
+            Assert-NativeSuccess "Push routine report"
         }
     } finally {
         Pop-Location
